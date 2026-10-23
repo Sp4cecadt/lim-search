@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b0f14">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="LIM Search">
+<meta name="robots" content="noindex, nofollow">
+<title>LIM Search</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<header id="top">
+  <div class="brand"><span class="logo">⚡</span> LIM Search <span id="ver" class="ver"></span></div>
+  <form id="qform" class="searchbar" autocomplete="off" role="search">
+    <input id="q" type="search" inputmode="search" enterkeyhint="search" placeholder="Search defects, codes, rules…" aria-label="Search the manual">
+    <button type="button" id="mic" class="mic" aria-label="Voice search">🎤</button>
+  </form>
+  <div id="micmsg" class="micmsg" hidden></div>
+  <div id="bgtask" class="micmsg small" hidden></div>
+</header>
+<main id="view"></main>
+<nav id="tabs">
+  <a href="#/search" data-tab="search"><span>🔍</span>Search</a>
+  <a href="#/browse" data-tab="browse"><span>📚</span>Browse</a>
+  <a href="#/cheat" data-tab="cheat"><span>⚠️</span>Priorities</a>
+  <a href="#/manual" data-tab="manual"><span>📄</span>Manual</a>
+</nav>
+<div id="modal" class="modal" hidden></div>
+<script type="module" src="app.js"></script>
+</body>
+</html>
