@@ -8,7 +8,8 @@
     { id: 'eucalypt', name: 'Eucalypt', sb: '#22552a', dk: '#6fcf8a', lt: '#2e7d32' },
     { id: 'jacaranda', name: 'Jacaranda', sb: '#43289a', dk: '#b39dff', lt: '#6a3fd1' },
     { id: 'graphite', name: 'Graphite', sb: '#2f3a46', dk: '#c9d1d9', lt: '#36414e' },
-    { id: 'ios', name: 'iOS', sub: 'Apple style', sb: '#1c1c1e', dk: '#0a84ff', lt: '#8e8e93', dbg: '#000000', lhdr: '#f9f9f9' }
+    { id: 'ios', name: 'iOS', sub: 'Apple style', sb: '#1c1c1e', dk: '#0a84ff', lt: '#8e8e93', dbg: '#000000', lhdr: '#f9f9f9' },
+    { id: 'manual', name: 'Manual', sub: 'LIM colours', sb: '#2a7f7a', dk: '#44b6b0', lt: '#ed7d31', dbg: '#0b2523', lhdr: '#44b6b0' }
   ];
   var DARK_BG = '#0d1117', LIGHT_HDR = '#ffffff';
   var mq = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : { matches: true };

@@ -166,5 +166,26 @@ input.filter:focus{outline:none;border-color:var(--acc)}
 [data-scheme="ios"] .sw .dots i{border-color:var(--surf2)}
 [data-scheme="ios"] .sw[aria-pressed="true"]{box-shadow:inset 0 0 0 2px var(--acc)}
 
+/* ---------- LIM Manual scheme: colours sampled from the Line Inspection Manual PDF (colour values only).
+   Cover band teal #44B6B0 -> header; heading / table-header orange #ED7D31 -> accent; severity key salmon #FFA29B (Extreme-High)
+   and grey #AEAAAA (Moderate-Low) -> severity scale labels; logo grey #57585B -> secondary text. Badges unchanged. ---------- */
+:root[data-scheme="manual"]{--acc:#ed7d31;--on-acc:#1a1a1a;--ink:#f0894a;--soft:rgba(237,125,49,.22);--sb:#2a7f7a;
+  --mhdr:#0b2523;--mhdr-fg:#e8f6f5;--mhdr-mute:#8fcfca;--mq:#123a37;--mq-line:#2a7f7a;--sev-hi:#ffa29b;--sev-lo:#aeaaaa;--sev-fg:#2b0d08;--h2:#f0894a}
+:root[data-mode="light"][data-scheme="manual"]{--acc:#ed7d31;--on-acc:#1a1a1a;--ink:#b4520f;--soft:#fde3d2;--mute:#57585b;
+  --mhdr:#44b6b0;--mhdr-fg:#0b2d2b;--mhdr-mute:#0f3f3c;--mq:#ffffff;--mq-line:#2a8f89;--h2:#b4520f}
+[data-scheme="manual"] header#top{background:var(--mhdr);border-bottom:3px solid var(--acc)}
+[data-scheme="manual"] .brand,[data-scheme="manual"] .logo{color:var(--mhdr-fg)} [data-scheme="manual"] .ver{color:var(--mhdr-mute)}
+[data-scheme="manual"] #q{background:var(--mq);border-color:var(--mq-line);color:var(--fg)}
+[data-scheme="manual"] #q:focus{border-color:var(--acc)}
+[data-scheme="manual"] .mic{background:var(--mq);border-color:var(--mq-line)}
+[data-scheme="manual"] #sbband{background:var(--mhdr)} :root[data-mode="light"][data-scheme="manual"] #sbband{background:var(--sb)}
+[data-scheme="manual"] h2{color:var(--h2)}
+[data-scheme="manual"] table.scale td.l{font-style:italic;color:var(--sev-fg)}
+[data-scheme="manual"] table.scale td.l.lv-Extreme,[data-scheme="manual"] table.scale td.l.lv-VeryHigh,[data-scheme="manual"] table.scale td.l.lv-High{background:var(--sev-hi);color:var(--sev-fg)}
+[data-scheme="manual"] table.scale td.l.lv-Moderate,[data-scheme="manual"] table.scale td.l.lv-Low{background:var(--sev-lo);color:#1a1a1a}
+
 @media (prefers-contrast: more){:root[data-mode="dark"]{--mute:#d5dde6;--line:#55657a;--line2:#6a7a8f}:root[data-mode="light"]{--mute:#353c44;--line:#9aa3ae;--line2:#7d8794}}
 [hidden]{display:none !important}
+
+/* swipe navigation: the sliding view must never create sideways page scroll */
+html,body{overflow-x:hidden} @supports (overflow:clip){html,body{overflow-x:clip}}

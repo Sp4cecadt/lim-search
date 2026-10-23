@@ -1,5 +1,6 @@
 import * as store from './js/store.js';
 import { buildIndex, search, hasWord } from './js/search.js';
+import { initSwipe } from './js/swipe.js';
 
 const $ = s => document.querySelector(s);
 const view = $('#view');
@@ -389,14 +390,28 @@ function setupMic() {
 }
 // ---------------- routing ----------------
 function go(q) { addRecent(q); location.hash = '#/search?q=' + encodeURIComponent(q); }
+// history bookkeeping: each entry gets an index so a back swipe knows whether there is an in-app screen to go back to
+let NAVIDX = -1, LAST_SEARCH = '#/search';
+const tabOf = h => h.startsWith('#/browse') ? 'browse' : h.startsWith('#/cheat') ? 'cheat' : h.startsWith('#/manual') ? 'manual' : h.startsWith('#/search') || !h || h === '#' || h === '#/' ? 'search' : null;
+function trackHistory() {
+  const st = history.state;
+  if (st && typeof st.idx === 'number') NAVIDX = st.idx; else { NAVIDX++; history.replaceState({ ...(st || {}), idx: NAVIDX }, ''); }
+  if (location.hash.startsWith('#/search')) LAST_SEARCH = location.hash;
+}
+function closeModal() {
+  const m = $('#modal');
+  if (location.hash.startsWith('#/page/')) { if (NAVIDX > 0) history.back(); else location.replace('#/search'); return; }
+  m.hidden = true; m.innerHTML = '';
+}
 function route() {
+  trackHistory();
   const h = location.hash || '#/search';
-  const tab = h.startsWith('#/browse') ? 'browse' : h.startsWith('#/cheat') ? 'cheat' : h.startsWith('#/manual') ? 'manual' : 'search';
+  const tab = tabOf(h) || 'search';
   document.querySelectorAll('#tabs a').forEach(a => a.classList.toggle('on', a.dataset.tab === tab));
   if (!h.startsWith('#/page/')) { $('#modal').hidden = true; $('#modal').innerHTML = ''; }
   let m;
   if ((m = h.match(/^#\/page\/(\d+)/))) return showPage(+m[1]);
-  if ((m = h.match(/^#\/d\/(\w+)/))) { const d = ENG && ENG.byId.get(m[1]); view.innerHTML = d ? `<a class="btn" href="javascript:history.back()">‹ Back</a>${defectCard(d, { open: true, terms: lastQ ? lastQ.split(/\s+/) : [] })}` : ''; window.scrollTo(0, 0); hydratePhotos(); return; }
+  if ((m = h.match(/^#\/d\/(\w+)/))) { const d = ENG && ENG.byId.get(m[1]); view.innerHTML = d ? `<a class="btn" href="#/search" data-back>‹ Back</a>${defectCard(d, { open: true, terms: lastQ ? lastQ.split(/\s+/) : [] })}` : ''; window.scrollTo(0, 0); hydratePhotos(); return; }
   window.scrollTo(0, 0);
   if (tab === 'browse') return renderBrowse();
   if (tab === 'cheat') return renderCheat();
@@ -407,15 +422,18 @@ function route() {
 // ---------------- init ----------------
 view.addEventListener('toggle', e => { if (e.target.open) hydratePhotos(e.target); }, true);
 view.addEventListener('click', e => {
+  const bk = e.target.closest('[data-back]'); if (bk) { e.preventDefault(); if (NAVIDX > 0) history.back(); else location.replace(LAST_SEARCH); return; }
   const ph = e.target.closest('[data-ph]'); if (ph) { e.preventDefault(); showPhoto(ph.dataset.ph); return; }
   const c = e.target.closest('[data-q]'); if (c) { go(c.dataset.q); return; }
   const b = e.target.closest('[data-bf]'); if (b) { browseFilter = b.dataset.bf; renderBrowse(); }
 });
 let deb;
-$('#q').addEventListener('input', e => { clearTimeout(deb); deb = setTimeout(() => { const q = e.target.value; if (!location.hash.startsWith('#/search')) location.hash = '#/search'; history.replaceState(null, '', '#/search?q=' + encodeURIComponent(q)); renderSearch(q); }, 220); });
+$('#q').addEventListener('input', e => { clearTimeout(deb); deb = setTimeout(() => { const q = e.target.value; if (!location.hash.startsWith('#/search')) location.hash = '#/search'; history.replaceState(history.state, '', '#/search?q=' + encodeURIComponent(q)); LAST_SEARCH = location.hash; renderSearch(q); }, 220); });
 $('#qform').addEventListener('submit', e => { e.preventDefault(); $('#q').blur(); go($('#q').value); });
 window.addEventListener('hashchange', route);
 setupMic();
+const SWIPE = initSwipe({ view, modal: $('#modal'), tabOf: h => tabOf(h || '#/search'), tabHref: t => t === 'search' ? LAST_SEARCH : '#/' + t,
+  canGoBack: () => NAVIDX > 0, closeModal, standalone: () => STANDALONE || document.documentElement.dataset.standalone === '1' });
 if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(() => {});
 loadData().then(route);
-window.__lim = { get data() { return DATA; }, get photos() { return PHOTOS; }, get photoMeta() { return PHMETA; }, get photoRun() { return !!PHOTO_RUN; } };
+window.__lim = { get navIdx() { return NAVIDX; }, swipe: SWIPE, get data() { return DATA; }, get photos() { return PHOTOS; }, get photoMeta() { return PHMETA; }, get photoRun() { return !!PHOTO_RUN; } };
