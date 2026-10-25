@@ -59,6 +59,43 @@ function recent() { try { return JSON.parse(localStorage.getItem('recent') || '[
 function addRecent(q) { q = q.trim(); if (q.length < 2) return; const r = [q, ...recent().filter(x => x.toLowerCase() !== q.toLowerCase())].slice(0, 12); localStorage.setItem('recent', JSON.stringify(r)); }
 
 // ---------------- defect card ----------------
+const SKYNET_ID = '3b498f46-4fb4-4a80-ba39-20249f15d21e';
+function currentDefect() {
+  const m = (location.hash || '').match(/^#\/d\/(\w+)/);
+  return (m && ENG && ENG.byId.get(m[1])) || null;
+}
+function askSkynetText(d) {
+  // One-line prefill only. Never include manual body/details/PDF text.
+  let t;
+  if (d && d.title) {
+    const bits = [];
+    if (d.zCode) bits.push('Z Code possible');
+    if (d.breakdown) bits.push('Breakdown possible');
+    if (d.priorityRange) bits.push(String(d.priorityRange).replace(/\s+/g, ' ').trim().slice(0, 80));
+    else if (d.severityRange) bits.push('severity ' + String(d.severityRange).replace(/\s+/g, ' ').trim().slice(0, 60));
+    t = `Help me with this LIM defect: ${d.title}.`;
+    if (bits.length) t += ` Priority: ${bits.join('; ')}.`;
+    t += ' What should I check and how should I record it?';
+  } else {
+    t = 'Help me with the LIM (Line Inspection Manual): searching defects, priorities (Z Code / Breakdown), and how to record them.';
+  }
+  t = t.replace(/\s+/g, ' ').trim();
+  return t.length > 1000 ? t.slice(0, 997) + '…' : t;
+}
+function askSkynetLinks(d) {
+  const text = askSkynetText(d);
+  const q = `id=${SKYNET_ID}&text=${encodeURIComponent(text)}`;
+  return { native: `grokbot://app/v1/prompt?${q}`, https: `https://cursor.com/grok-bot/link/v1/prompt?${q}`, text };
+}
+function openAskSkynet(d) {
+  const { native, https } = askSkynetLinks(d == null ? currentDefect() : d);
+  // Prefer the native deep link on iOS Home Screen / standalone; fall back to https if the app doesn't open.
+  const started = Date.now();
+  const goHttps = () => { if (document.visibilityState === 'visible' && Date.now() - started < 2500) location.href = https; };
+  try { location.href = native; } catch (_) { location.href = https; return; }
+  setTimeout(goHttps, STANDALONE || IS_IOS ? 900 : 200);
+}
+
 function defectCard(d, { open = false, terms = [] } = {}) {
   const cls = d.zCode ? 'z' : d.breakdown ? 'bd' : '';
   const badges = [];
@@ -369,7 +406,11 @@ function setupMic() {
   const keyboardMode = () => !SR || broken || (IS_IOS && STANDALONE);
   // must run synchronously inside the tap, or iOS won't open the keyboard
   const kbDictate = (lead = '') => { q.focus(); try { q.setSelectionRange(q.value.length, q.value.length); } catch (e) {} tip(lead + KBTIP, 15000); };
-  btn.setAttribute('aria-label', keyboardMode() ? 'Voice search (opens the keyboard for dictation)' : 'Voice search');
+  // UI is a keyboard control (matches what iPhone Home Screen does); SR may still run elsewhere under the hood.
+  btn.setAttribute('aria-label', 'Open keyboard for dictation');
+  btn.title = 'Keyboard';
+  // Always show keyboard glyph: on iPhone Home Screen that's what the control does; elsewhere it still falls back to the keyboard tip.
+  btn.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="6.5" width="19" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M6 13h.01M10 13h.01M14 13h.01M18 13h.01M8 16h8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>`;
   q.addEventListener('blur', () => setTimeout(() => { if (!on) msg.hidden = true; }, 300));
   let rec = null, on = false, wd = null, gotResult = false;
   const fail = (why, remember) => { clearTimeout(wd); on = false; btn.classList.remove('on'); try { rec && rec.abort(); } catch (e) {} if (remember) { broken = true; sessionStorage.setItem('srBroken', '1'); } kbDictate(why); };
@@ -432,8 +473,9 @@ $('#q').addEventListener('input', e => { clearTimeout(deb); deb = setTimeout(() 
 $('#qform').addEventListener('submit', e => { e.preventDefault(); $('#q').blur(); go($('#q').value); });
 window.addEventListener('hashchange', route);
 setupMic();
+$('#ask').addEventListener('click', e => { e.preventDefault(); openAskSkynet(currentDefect()); });
 const SWIPE = initSwipe({ view, modal: $('#modal'), tabOf: h => tabOf(h || '#/search'), tabHref: t => t === 'search' ? LAST_SEARCH : '#/' + t,
   canGoBack: () => NAVIDX > 0, closeModal, standalone: () => STANDALONE || document.documentElement.dataset.standalone === '1' });
 if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(() => {});
 loadData().then(route);
-window.__lim = { get navIdx() { return NAVIDX; }, swipe: SWIPE, get data() { return DATA; }, get photos() { return PHOTOS; }, get photoMeta() { return PHMETA; }, get photoRun() { return !!PHOTO_RUN; } };
+window.__lim = { get navIdx() { return NAVIDX; }, swipe: SWIPE, askSkynetText, askSkynetLinks, currentDefect, openAskSkynet, get data() { return DATA; }, get photos() { return PHOTOS; }, get photoMeta() { return PHMETA; }, get photoRun() { return !!PHOTO_RUN; } };

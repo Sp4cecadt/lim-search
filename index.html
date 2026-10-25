@@ -22,17 +22,22 @@
   <div class="brand"><span class="logo">⚡</span> LIM Search <span id="ver" class="ver"></span></div>
   <form id="qform" class="searchbar" autocomplete="off" role="search">
     <input id="q" type="search" inputmode="search" enterkeyhint="search" placeholder="Search defects, codes, rules…" aria-label="Search the manual">
-    <button type="button" id="mic" class="mic" aria-label="Voice search">🎤</button>
+    <button type="button" id="mic" class="mic hdrbtn" aria-label="Open keyboard for dictation" title="Keyboard">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="6.5" width="19" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M6 13h.01M10 13h.01M14 13h.01M18 13h.01M8 16h8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+    </button>
+    <button type="button" id="ask" class="askbtn hdrbtn" aria-label="Ask Skynet" title="Ask Skynet">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.6 5.2L19 10l-5.4 1.8L12 17l-1.6-5.2L5 10l5.4-1.8L12 3z" fill="currentColor"/><path d="M18.5 14.5l.7 2.2 2.3.8-2.3.8-.7 2.2-.7-2.2-2.3-.8 2.3-.8.7-2.2z" fill="currentColor" opacity=".85"/></svg>
+    </button>
   </form>
   <div id="micmsg" class="micmsg" hidden></div>
   <div id="bgtask" class="micmsg small" hidden></div>
 </header>
 <main id="view"></main>
 <nav id="tabs">
-  <a href="#/search" data-tab="search"><span>🔍</span>Search</a>
-  <a href="#/browse" data-tab="browse"><span>📚</span>Browse</a>
-  <a href="#/cheat" data-tab="cheat"><span>⚠️</span>Priorities</a>
-  <a href="#/manual" data-tab="manual"><span>📄</span>Manual</a>
+  <a href="#/search" data-tab="search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M16.2 16.2L21 21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span class="tl">Search</span></a>
+  <a href="#/browse" data-tab="browse"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span class="tl">Browse</span></a>
+  <a href="#/cheat" data-tab="cheat"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20l2.2-6.5L4 10h5.2L12 3l2.8 7H20l-3.2 3.5L19 20l-7-3.8L5 20z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg><span class="tl">Priorities</span></a>
+  <a href="#/manual" data-tab="manual"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5A2.5 2.5 0 016.5 3H20v16H6.5A2.5 2.5 0 004 16.5v-11z" fill="none" stroke="currentColor" stroke-width="2"/><path d="M4 16.5A2.5 2.5 0 016.5 19H20" fill="none" stroke="currentColor" stroke-width="2"/></svg><span class="tl">Manual</span></a>
 </nav>
 <div id="modal" class="modal" hidden></div>
 <script type="module" src="app.js"></script>
