@@ -209,15 +209,13 @@ function renderSearch(q) {
     const r = all.slice(0, fit); // newest first; oldest visible drops off when full — storage keeps the rest
     // Try/EXAMPLES gated off so Recent can use the space. Restore by uncommenting the Try block below.
     // const tryBlock = `<h2>Try</h2><div class="chips">${EXAMPLES.map(x => `<button class="chip" data-q="${esc(x)}">${esc(x)}</button>`).join('')}</div>`;
-    view.innerHTML = `${r.length ? secfold('Recent searches', `<div class="recent-list chips">${r.map(x => `<button class="chip" data-q="${esc(x)}">${esc(x)}</button>`).join('')}</div>`) : ''}
+    // Recent is permanently open (plain h2 — not a secfold; never collapses).
+    view.innerHTML = `${r.length ? `<h2>Recent searches</h2><div class="recent-list chips">${r.map(x => `<button class="chip" data-q="${esc(x)}">${esc(x)}</button>`).join('')}</div>` : ''}
       <p class="muted small" style="margin-top:18px">Search runs on your phone and works offline. Results show the defect cards first (codes, priorities, severity scale), then everything else the manual says, with page numbers to check.</p>`;
-    closeSecfolds();
     // After first paint, refine fit for wrapping layout (may need a couple passes)
     if (all.length) {
       let passes = 0;
       const refine = () => {
-        const fold = view.querySelector('.recent-list')?.closest('details');
-        if (fold && !fold.open) return; // closed: hidden list can't be measured; refine on open
         const refined = Math.min(all.length, recentFitCount());
         const list = view.querySelector('.recent-list');
         const shown = list ? list.querySelectorAll('[data-q]').length : 0;
@@ -229,8 +227,6 @@ function renderSearch(q) {
         }
       };
       requestAnimationFrame(refine);
-      const fold = view.querySelector('.recent-list')?.closest('details');
-      if (fold) fold.addEventListener('toggle', () => { if (fold.open) { passes = 0; requestAnimationFrame(refine); } });
     }
     return;
   }
@@ -611,18 +607,32 @@ setupMic();
 $('#ask').addEventListener('click', e => { e.preventDefault(); openAskSkynet(currentDefect()); });
 const SWIPE = initSwipe({ view, modal: $('#modal'), tabOf: h => tabOf(h || '#/search'), tabHref: t => t === 'search' ? LAST_SEARCH : '#/' + t,
   canGoBack: () => NAVIDX > 0, closeModal, standalone: () => STANDALONE || document.documentElement.dataset.standalone === '1' });
-// Keep #tabs pinned to the layout/physical bottom on iOS. When the keyboard or
-// browser chrome shrinks visualViewport, position:fixed;bottom:0 rides up with it —
-// especially on short Search/Docs pages. Counter with a translateY so resting
-// position matches Browse / Priorities / Manual.
+// Keep #tabs pinned to the layout/physical bottom on iOS.
+// When #q is focused, iOS often shrinks window.innerHeight along with the keyboard,
+// so (innerHeight - vv.height) ≈ 0 and the old pin never ran — while fixed;bottom:0
+// still rides up above the keyboard. Baseline the pre-keyboard innerHeight and
+// counter with translateY only while #q is focused. Docs/Browse have no focused #q.
 (function pinTabsToLayoutBottom() {
   const tabs = document.getElementById('tabs');
   if (!tabs) return;
+  let baselineInnerH = window.innerHeight;
+  let raf = 0;
   const sync = () => {
-    const vv = window.visualViewport;
-    if (!vv) { tabs.style.transform = ''; return; }
-    const kb = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
-    tabs.style.transform = kb ? `translateY(${kb}px)` : '';
+    if (raf) return;
+    raf = requestAnimationFrame(() => {
+      raf = 0;
+      const vv = window.visualViewport;
+      const q = document.getElementById('q');
+      const focused = !!(q && document.activeElement === q);
+      if (!vv) { tabs.style.transform = ''; return; }
+      if (!focused) {
+        baselineInnerH = window.innerHeight;
+        tabs.style.transform = '';
+        return;
+      }
+      const kb = Math.max(0, baselineInnerH - vv.height - vv.offsetTop);
+      tabs.style.transform = kb ? `translateY(${kb}px)` : '';
+    });
   };
   sync();
   if (window.visualViewport) {
@@ -634,6 +644,10 @@ const SWIPE = initSwipe({ view, modal: $('#modal'), tabOf: h => tabOf(h || '#/se
   window.addEventListener('focusin', sync);
   window.addEventListener('focusout', () => setTimeout(sync, 50));
 })();
+// Blur search field when tapping a bottom tab so focus races don't leave the bar raised.
+document.getElementById('tabs')?.addEventListener('click', e => {
+  if (e.target.closest('a')) { try { document.getElementById('q').blur(); } catch (_) {} }
+});
 if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(() => {});
 loadData().then(route);
 window.__lim = { get navIdx() { return NAVIDX; }, swipe: SWIPE, askSkynetText, askSkynetLinks, currentDefect, openAskSkynet, get data() { return DATA; }, get photos() { return PHOTOS; }, get photoMeta() { return PHMETA; }, get photoRun() { return !!PHOTO_RUN; } };
