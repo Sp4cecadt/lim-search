@@ -63,9 +63,15 @@ function addRecent(q) {
   localStorage.setItem('recent', JSON.stringify(r));
 }
 
-/** Collapsible section: heading looks like h2; body toggles open/closed. Default open. */
+/** Collapsible section: heading looks like h2; body toggles open/closed. Default closed (pass open=true to start open, e.g. Defect cards). */
 function secfold(titleHtml, bodyHtml, open = false) {
-  return `<details class="secfold"${open ? ' open' : ''}><summary>${titleHtml}</summary><div class="secfold-body">${bodyHtml}</div></details>`;
+  const keep = open ? ' secfold-keepopen' : '';
+  return `<details class="secfold${keep}"${open ? ' open' : ''}><summary>${titleHtml}</summary><div class="secfold-body">${bodyHtml}</div></details>`;
+}
+/** Force-close secfolds after render (Safari can restore open). Skip .secfold-keepopen (Defect cards). */
+function closeSecfolds(root = view) {
+  if (!root) return;
+  root.querySelectorAll('details.secfold:not(.secfold-keepopen)').forEach(d => { d.open = false; });
 }
 /** How many recent chips fit between the header and bottom tabs with wrapping rows (display-only; storage is untouched). */
 function recentFitCount() {
@@ -205,6 +211,7 @@ function renderSearch(q) {
     // const tryBlock = `<h2>Try</h2><div class="chips">${EXAMPLES.map(x => `<button class="chip" data-q="${esc(x)}">${esc(x)}</button>`).join('')}</div>`;
     view.innerHTML = `${r.length ? secfold('Recent searches', `<div class="recent-list chips">${r.map(x => `<button class="chip" data-q="${esc(x)}">${esc(x)}</button>`).join('')}</div>`) : ''}
       <p class="muted small" style="margin-top:18px">Search runs on your phone and works offline. Results show the defect cards first (codes, priorities, severity scale), then everything else the manual says, with page numbers to check.</p>`;
+    closeSecfolds();
     // After first paint, refine fit for wrapping layout (may need a couple passes)
     if (all.length) {
       let passes = 0;
@@ -237,7 +244,7 @@ function renderSearch(q) {
   if (r.defects.length) {
     let body = r.defects.slice(0, 2).map((x, i) => defectCard(x.d, { terms, open: false })).join('');
     if (r.defects.length > 2) body += `<div class="card">${r.defects.slice(2).map(x => `<a class="row" href="#/d/${x.d.id}"><span>${hl(x.d.title, terms)}<br><small>§${esc(x.d.section)} ${esc(x.d.sectionTitle)} · p.${x.d.page}</small></span><span>${x.d.zCode ? '<span class="b z">Z</span>' : ''}${x.d.breakdown ? ' <span class="b bd">BD</span>' : ''} ›</span></a>`).join('')}</div>`;
-    h += secfold(`Defect cards ${r.mode === 'any' ? '<small>(partial match)</small>' : ''}`, body);
+    h += secfold(`Defect cards ${r.mode === 'any' ? '<small>(partial match)</small>' : ''}`, body, true);
   }
   if (r.quickCodes.length) h += secfold('Quick codes (§14.2)', `<div class="card">${r.quickCodes.map(c => `<div class="row"><span><span class="qc">${esc(c.group ? c.group + ' > ' : '')}${hl(c.name, terms)}</span><br><small>${hl(c.desc, terms)}</small></span><span><span class="b">${esc(c.type)}</span> ${pageLink(c.p)}</span></div>`).join('')}</div>`);
   if (r.chunks.length) {
@@ -246,6 +253,7 @@ function renderSearch(q) {
   }
   if (!h) h = `<div class="card">Nothing found for “${esc(q)}”. Try fewer or different words (e.g. “crossarm” instead of “x-arm brace rusted through”).</div>`;
   view.innerHTML = h + `<p class="muted small">${Math.round(performance.now() - t0)} ms · matched: ${r.concepts.map(c => esc(c[0])).join(', ')}</p>`;
+  closeSecfolds();
 }
 function zPanel() {
   const p = passage('priorityscale'), dl = passage('deadlines');
@@ -273,6 +281,7 @@ function renderBrowse() {
     ${secfold('Manual sections', `<div class="card">${DATA.toc.filter(t => !/^\d+$/.test(t.num) || true).map(t => `<a class="row" href="#/page/${t.from}"><span>${esc(t.num)} ${esc(t.title)}</span><small>p.${t.from}–${t.to}</small></a>`).join('')}</div>`)}`;
   const draw = () => { const v = ($('#qcf').value || '').toLowerCase(); $('#qcl').innerHTML = DATA.quickCodeTable.filter(c => !v || (c.name + ' ' + c.group + ' ' + c.desc + ' ' + c.type).toLowerCase().includes(v)).slice(0, 400).map(c => `<div class="row"><span><span class="qc">${esc(c.group ? c.group + ' > ' : '')}${esc(c.name)}</span><br><small>${esc(c.desc)}</small></span><span><span class="b">${esc(c.type)}</span> ${pageLink(c.p)}</span></div>`).join(''); };
   $('#qcf').addEventListener('input', draw); draw();
+  closeSecfolds();
 }
 function renderCheat() {
   if (!DATA) return needData();
@@ -284,6 +293,7 @@ function renderCheat() {
     ${secfold(`Cards where Z Code is possible (${zs.length})`, `<div class="card">${zs.map(d => `<a class="row" href="#/d/${d.id}"><span>${esc(d.title)}<br><small>§${esc(d.section)} · p.${d.page} · ${esc((d.priorityByBfra && (d.priorityByBfra['H/MBFRA'] || d.priorityByBfra.HBFRA)) || d.priorityRange || '')}</small></span><span>${d.inZIndex ? '' : '<span class="b warn">not in App.1</span>'} ›</span></a>`).join('')}</div>`)}
     ${unmatched.length ? secfold('Appendix 1 entries without a matching card', `<div class="card">${unmatched.map(i => `<div class="row"><span>${esc(i.secNum || '')} ${esc(i.secTitle || '')} – ${esc(i.name)}</span>${pageLink(i.page)}</div>`).join('')}</div>`) : ''}
     <p class="muted small">Everything above is copied from the manual. Tap a page number to check it.</p>`;
+  closeSecfolds();
 }
 function photoStatus() {
   const m = DATA && DATA.meta;

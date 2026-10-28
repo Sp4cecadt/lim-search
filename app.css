@@ -218,6 +218,9 @@ details.secfold > summary::before{content:'▸';margin-right:8px;font-weight:700
 details.secfold[open] > summary::before{content:'▾'}
 details.secfold > summary small{text-transform:none;letter-spacing:0;font-weight:400;opacity:.85}
 details.secfold > .secfold-body{margin:0}
+/* WebKit: display:flex on <summary> can leave closed <details> bodies visible — force-hide. */
+details.secfold:not([open]) > .secfold-body{display:none !important}
+details:not([open]) > *:not(summary){display:none}
 [data-scheme="ios"] details.secfold > summary{font-size:13px;font-weight:400;letter-spacing:0;color:var(--mute);margin:24px 16px 6px}
 [data-scheme="ios"] details.secfold{border-top:none}
 [data-scheme="manual"] details.secfold > summary{color:var(--h2)}
