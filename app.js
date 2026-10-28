@@ -572,6 +572,8 @@ function route() {
   const h = location.hash || '#/search';
   const tab = tabOf(h) || 'search';
   document.querySelectorAll('#tabs a').forEach(a => a.classList.toggle('on', a.dataset.tab === tab));
+  // Dismiss search keyboard when leaving Search so iOS doesn't leave the fixed tab bar raised.
+  if (tab !== 'search') { try { $('#q').blur(); } catch (_) {} }
   if (!h.startsWith('#/page/')) { $('#modal').hidden = true; $('#modal').innerHTML = ''; }
   let m;
   if ((m = h.match(/^#\/page\/(\d+)/))) return showPage(+m[1]);
@@ -609,6 +611,29 @@ setupMic();
 $('#ask').addEventListener('click', e => { e.preventDefault(); openAskSkynet(currentDefect()); });
 const SWIPE = initSwipe({ view, modal: $('#modal'), tabOf: h => tabOf(h || '#/search'), tabHref: t => t === 'search' ? LAST_SEARCH : '#/' + t,
   canGoBack: () => NAVIDX > 0, closeModal, standalone: () => STANDALONE || document.documentElement.dataset.standalone === '1' });
+// Keep #tabs pinned to the layout/physical bottom on iOS. When the keyboard or
+// browser chrome shrinks visualViewport, position:fixed;bottom:0 rides up with it —
+// especially on short Search/Docs pages. Counter with a translateY so resting
+// position matches Browse / Priorities / Manual.
+(function pinTabsToLayoutBottom() {
+  const tabs = document.getElementById('tabs');
+  if (!tabs) return;
+  const sync = () => {
+    const vv = window.visualViewport;
+    if (!vv) { tabs.style.transform = ''; return; }
+    const kb = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+    tabs.style.transform = kb ? `translateY(${kb}px)` : '';
+  };
+  sync();
+  if (window.visualViewport) {
+    visualViewport.addEventListener('resize', sync);
+    visualViewport.addEventListener('scroll', sync);
+  }
+  window.addEventListener('resize', sync);
+  window.addEventListener('orientationchange', () => setTimeout(sync, 50));
+  window.addEventListener('focusin', sync);
+  window.addEventListener('focusout', () => setTimeout(sync, 50));
+})();
 if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(() => {});
 loadData().then(route);
 window.__lim = { get navIdx() { return NAVIDX; }, swipe: SWIPE, askSkynetText, askSkynetLinks, currentDefect, openAskSkynet, get data() { return DATA; }, get photos() { return PHOTOS; }, get photoMeta() { return PHMETA; }, get photoRun() { return !!PHOTO_RUN; } };
