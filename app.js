@@ -164,6 +164,7 @@ function renderSearch(q) {
   if (!DATA) return needData();
   q = q ?? $('#q').value;
   if ($('#q').value !== q) $('#q').value = q;
+  { const c = $('#qclear'); if (c) c.hidden = !$('#q').value; }
   lastQ = q;
   if (!q.trim()) {
     const all = recent();
@@ -544,6 +545,8 @@ view.addEventListener('click', e => {
 });
 let deb;
 $('#q').addEventListener('input', e => { clearTimeout(deb); deb = setTimeout(() => { const q = e.target.value; if (!location.hash.startsWith('#/search')) location.hash = '#/search'; history.replaceState(history.state, '', '#/search?q=' + encodeURIComponent(q)); LAST_SEARCH = location.hash; renderSearch(q); }, 220); });
+$('#q').addEventListener('input', e => { $('#qclear').hidden = !e.target.value; });
+$('#qclear').addEventListener('click', () => { clearTimeout(deb); const q = $('#q'); q.value = ''; $('#qclear').hidden = true; if (!location.hash.startsWith('#/search')) location.hash = '#/search'; history.replaceState(history.state, '', '#/search?q='); LAST_SEARCH = location.hash; renderSearch(''); q.focus(); });
 $('#qform').addEventListener('submit', e => { e.preventDefault(); $('#q').blur(); go($('#q').value); });
 window.addEventListener('hashchange', route);
 window.addEventListener('resize', () => {

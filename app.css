@@ -198,3 +198,8 @@ input.filter:focus{outline:none;border-color:var(--acc)}
 
 /* swipe navigation: the sliding view must never create sideways page scroll */
 html,body{overflow-x:hidden} @supports (overflow:clip){html,body{overflow-x:clip}}
+
+.qclear{width:30px;height:30px;min-width:30px;flex:none;align-self:center;display:inline-flex;align-items:center;justify-content:center;padding:0;border:0;border-radius:50%;background:transparent;color:var(--muted,#8a8a8a);cursor:pointer}
+.qclear[hidden]{display:none}
+.qclear:active{opacity:.6}
+[data-scheme="ios"] .qclear,[data-scheme="manual"] .qclear{background:transparent;border:0}
