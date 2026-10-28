@@ -59,8 +59,8 @@ h2{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;
 
 /* ---------- Components (flat: solid fills, 1px borders, no gradients/shadows) ---------- */
 .chips{display:flex;flex-wrap:wrap;gap:8px}
-.recent-list{flex-direction:column;flex-wrap:nowrap;align-items:stretch}
-.recent-list .chip{width:100%;text-align:left}
+.recent-list{flex-direction:column;flex-wrap:nowrap;align-items:flex-start}
+.recent-list .chip{width:auto;max-width:100%;align-self:flex-start;text-align:left}
 .chip{border:1px solid var(--line2);background:var(--surf);color:var(--fg);border-radius:999px;padding:10px 14px;font-size:16px;min-height:44px}
 .chip.on{background:var(--acc);color:var(--on-acc);border-color:var(--acc);font-weight:600}
 .card{background:var(--surf);border:1px solid var(--line);border-radius:var(--r);padding:14px;margin:10px 0}
