@@ -608,10 +608,11 @@ $('#ask').addEventListener('click', e => { e.preventDefault(); openAskSkynet(cur
 const SWIPE = initSwipe({ view, modal: $('#modal'), tabOf: h => tabOf(h || '#/search'), tabHref: t => t === 'search' ? LAST_SEARCH : '#/' + t,
   canGoBack: () => NAVIDX > 0, closeModal, standalone: () => STANDALONE || document.documentElement.dataset.standalone === '1' });
 // Keep #tabs pinned to the layout/physical bottom on iOS.
-// When #q is focused, iOS often shrinks window.innerHeight along with the keyboard,
-// so (innerHeight - vv.height) ≈ 0 and the old pin never ran — while fixed;bottom:0
-// still rides up above the keyboard. Baseline the pre-keyboard innerHeight and
-// counter with translateY only while #q is focused. Docs/Browse have no focused #q.
+// Short pages (empty Search) and the keyboard both shrink visualViewport so
+// position:fixed;bottom:0 rides up. Always counter with translateY (not only
+// while #q is focused — that left Search high whenever the field was blurred).
+// When #q is focused iOS may also shrink window.innerHeight; keep a pre-focus
+// baseline so the gap doesn't collapse to ~0 and skip the pin.
 (function pinTabsToLayoutBottom() {
   const tabs = document.getElementById('tabs');
   if (!tabs) return;
@@ -622,16 +623,13 @@ const SWIPE = initSwipe({ view, modal: $('#modal'), tabOf: h => tabOf(h || '#/se
     raf = requestAnimationFrame(() => {
       raf = 0;
       const vv = window.visualViewport;
+      if (!vv) { tabs.style.transform = ''; return; }
       const q = document.getElementById('q');
       const focused = !!(q && document.activeElement === q);
-      if (!vv) { tabs.style.transform = ''; return; }
-      if (!focused) {
-        baselineInnerH = window.innerHeight;
-        tabs.style.transform = '';
-        return;
-      }
-      const kb = Math.max(0, baselineInnerH - vv.height - vv.offsetTop);
-      tabs.style.transform = kb ? `translateY(${kb}px)` : '';
+      if (!focused) baselineInnerH = window.innerHeight;
+      const layoutH = focused ? Math.max(baselineInnerH, window.innerHeight) : window.innerHeight;
+      const gap = Math.max(0, layoutH - vv.height - vv.offsetTop);
+      tabs.style.transform = gap ? `translateY(${gap}px)` : '';
     });
   };
   sync();
@@ -641,7 +639,10 @@ const SWIPE = initSwipe({ view, modal: $('#modal'), tabOf: h => tabOf(h || '#/se
   }
   window.addEventListener('resize', sync);
   window.addEventListener('orientationchange', () => setTimeout(sync, 50));
-  window.addEventListener('focusin', sync);
+  window.addEventListener('focusin', e => {
+    if (e.target && e.target.id === 'q') baselineInnerH = Math.max(baselineInnerH, window.innerHeight);
+    sync();
+  });
   window.addEventListener('focusout', () => setTimeout(sync, 50));
 })();
 // Blur search field when tapping a bottom tab so focus races don't leave the bar raised.
