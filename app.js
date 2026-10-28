@@ -76,7 +76,7 @@ function closeSecfolds(root = view) {
 /** How many recent chips fit between the header and bottom tabs with wrapping rows (display-only; storage is untouched). */
 function recentFitCount() {
   const headerH = document.getElementById('top')?.getBoundingClientRect().height || 0;
-  const tabsH = document.getElementById('tabs')?.getBoundingClientRect().height || 54;
+  const tabsH = document.getElementById('tabs')?.getBoundingClientRect().height || 60;
   const pad = 24; // main#view padding top+bottom
   const heading = 48; // "Recent searches" h2
   const avail = Math.max(0, window.innerHeight - headerH - tabsH - pad - heading);
