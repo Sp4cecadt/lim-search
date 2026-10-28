@@ -98,6 +98,8 @@ summary::-webkit-details-marker{display:none} summary::before{content:'▸';marg
 .snip{font-size:15px;color:var(--pre);white-space:pre-wrap}
 .mention .meta{font-size:13px;color:var(--mute);margin-bottom:4px;display:flex;justify-content:space-between;gap:8px}
 .row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 4px;border-top:1px solid var(--line);color:var(--fg);text-decoration:none;min-height:52px}
+.row.docrow{cursor:pointer;-webkit-tap-highlight-color:transparent}
+.row.docrow:active{background:var(--surf2)}
 .row small{color:var(--mute)}
 .muted{color:var(--mute)} .small{font-size:14px}
 .note{background:var(--note-bg);border:1px solid var(--note-line);color:var(--note-fg);border-radius:10px;padding:10px 12px;font-size:15px;margin:8px 0}

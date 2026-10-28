@@ -346,22 +346,87 @@ async function renderManual(msg = '') {
   const ap = $('#addph'); if (ap) ap.addEventListener('click', addPhotosFromStored);
   $('#wipe').addEventListener('click', async () => { if (!confirm('Delete the stored manual, photos and PDF from this phone?')) return; PHOTO_RUN = null; await store.del('manual'); await store.del('meta'); await store.del('pdf'); await store.del('pdfInfo'); await store.del('photoMeta'); await store.photoClear(); PHOTOS = new Set(); PHMETA = null; resetPhotoURLs(); HAS_PDF = false; setData(null, null); renderManual('Deleted.'); });
 }
+function docKind(f) {
+  const t = (f.type || '').toLowerCase(), n = (f.name || '').toLowerCase();
+  if (t.includes('pdf') || n.endsWith('.pdf')) return 'PDF';
+  if (t.startsWith('image/') || /\.(png|jpe?g|webp|heic|gif)$/.test(n)) return 'Image';
+  if (n.endsWith('.docx') || n.endsWith('.doc') || t.includes('word')) return 'Doc';
+  return t ? t.split('/').pop().toUpperCase() : 'File';
+}
+function docIsPdf(f) {
+  const t = (f.type || '').toLowerCase(), n = (f.name || '').toLowerCase();
+  return t.includes('pdf') || n.endsWith('.pdf');
+}
+function docIsImage(f) {
+  const t = (f.type || '').toLowerCase(), n = (f.name || '').toLowerCase();
+  return t.startsWith('image/') || /\.(png|jpe?g|webp|heic|gif)$/.test(n);
+}
+/** Open a user Doc in the modal: images inline, PDFs via pdf.js, other types via blob link. */
+async function showUserDoc(id) {
+  const f = await store.docGet(id).catch(() => null);
+  if (!f || !f.blob) return;
+  const m = $('#modal'); m.hidden = false;
+  const name = f.name || 'Document';
+  const close = (urls = []) => {
+    for (const u of urls) try { URL.revokeObjectURL(u); } catch (_) {}
+    m.hidden = true; m.innerHTML = '';
+  };
+  if (docIsImage(f)) {
+    const u = URL.createObjectURL(f.blob);
+    m.innerHTML = `<div class="bar"><button class="btn" id="mx" type="button">✕</button><span class="t">${esc(name)}</span><button class="btn" id="mz" type="button">＋</button></div>
+      <div class="body phbody" id="mbody"><img id="bigph" src="${u}" alt="${esc(name)}"></div>`;
+    let z = 1; const img = $('#bigph');
+    $('#mz').onclick = () => { z = z >= 3 ? 1 : z + 1; img.style.width = (100 * z) + '%'; $('#mz').textContent = z >= 3 ? '－' : '＋'; };
+    $('#mx').onclick = () => close([u]);
+    return;
+  }
+  if (docIsPdf(f)) {
+    m.innerHTML = `<div class="bar"><button class="btn" id="mx" type="button">✕</button><span class="t" id="mt">${esc(name)}</span><button class="btn" id="mprev" type="button">‹</button><button class="btn" id="mnext" type="button">›</button><button class="btn" id="mz" type="button">＋</button></div><div class="body" id="mbody"><p class="muted">Loading…</p></div>`;
+    const body = $('#mbody');
+    let zoom = 1, pageN = 1, doc = null;
+    $('#mx').onclick = () => { try { doc && doc.destroy(); } catch (_) {} close(); };
+    try {
+      const { openPdf } = await import('./js/pdfload.js');
+      doc = await openPdf(f.blob);
+      const total = doc.numPages || 1;
+      const draw = async () => {
+        $('#mt').textContent = `${name} · ${pageN}/${total}`;
+        const pg = await doc.getPage(pageN);
+        const w = Math.min(window.innerWidth - 20, 900) * zoom;
+        const vp1 = pg.getViewport({ scale: 1 }); const scale = w / vp1.width; const dpr = Math.min(window.devicePixelRatio || 1, 2);
+        const vp = pg.getViewport({ scale: scale * dpr });
+        const c = document.createElement('canvas'); c.width = vp.width; c.height = vp.height; c.style.width = (vp.width / dpr) + 'px';
+        await pg.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise;
+        body.innerHTML = ''; body.appendChild(c);
+      };
+      $('#mprev').onclick = () => { if (pageN > 1) { pageN--; draw(); } };
+      $('#mnext').onclick = () => { if (pageN < total) { pageN++; draw(); } };
+      $('#mz').onclick = () => { zoom = zoom >= 3 ? 1 : zoom + 1; draw(); };
+      await draw();
+    } catch (e) {
+      body.innerHTML = `<div class="note">Couldn’t open this PDF: ${esc(e.message || e)}</div>`;
+    }
+    return;
+  }
+  const u = URL.createObjectURL(f.blob);
+  m.innerHTML = `<div class="bar"><button class="btn" id="mx" type="button">✕</button><span class="t">${esc(name)}</span></div>
+    <div class="body" id="mbody">
+      <div class="card"><p>No in-app preview for this file type (${esc(docKind(f))}).</p>
+      <p class="muted small">It is saved on this phone. Open or share it with another app:</p>
+      <a class="btn pri" href="${u}" download="${esc(name)}">Download</a>
+      <a class="btn" href="${u}" target="_blank" rel="noopener">Open</a></div>
+    </div>`;
+  $('#mx').onclick = () => close([u]);
+}
 async function renderDocs(msg = '') {
   const files = (await store.docAll().catch(() => [])) || [];
   files.sort((a, b) => (b.addedAt || 0) - (a.addedAt || 0));
   const fmt = n => n >= 1e6 ? (n / 1e6).toFixed(1) + ' MB' : n >= 1e3 ? (n / 1e3).toFixed(0) + ' KB' : n + ' B';
-  const kind = f => {
-    const t = (f.type || '').toLowerCase(), n = (f.name || '').toLowerCase();
-    if (t.includes('pdf') || n.endsWith('.pdf')) return 'PDF';
-    if (t.startsWith('image/') || /\.(png|jpe?g|webp|heic)$/.test(n)) return 'Image';
-    if (n.endsWith('.docx') || n.endsWith('.doc') || t.includes('word')) return 'Doc';
-    return t ? t.split('/').pop().toUpperCase() : 'File';
-  };
   const rows = files.length
-    ? `<div class="card">${files.map(f => `<div class="row" data-doc="${esc(f.id)}"><span><b>${esc(f.name)}</b><br><small>${esc(kind(f))} · ${fmt(f.size || 0)}${f.addedAt ? ' · ' + new Date(f.addedAt).toLocaleString('en-AU') : ''}</small></span><button type="button" class="btn danger" data-doc-del="${esc(f.id)}" aria-label="Delete ${esc(f.name)}">Delete</button></div>`).join('')}</div>`
+    ? `<div class="card">${files.map(f => `<div class="row docrow" role="button" tabindex="0" data-doc="${esc(f.id)}"><span><b>${esc(f.name)}</b><br><small>${esc(docKind(f))} · ${fmt(f.size || 0)}${f.addedAt ? ' · ' + new Date(f.addedAt).toLocaleString('en-AU') : ''}</small></span><button type="button" class="btn danger" data-doc-del="${esc(f.id)}" aria-label="Delete ${esc(f.name)}">Delete</button></div>`).join('')}</div>`
     : `<div class="card"><p class="muted">No docs on this phone yet. Add PDFs, screenshots, or other files — they stay on the device and aren’t uploaded.</p></div>`;
   view.innerHTML = `<div class="card"><h3>Docs</h3>
-    <p class="muted small">Your own files on this phone (not the Line Inspection Manual). Search/indexing comes later — for now you can add, list, and delete.</p>
+    <p class="muted small">Your own files on this phone (not the Line Inspection Manual). Tap a file to open it. Search/indexing comes later — for now you can add, open, and delete.</p>
     ${msg ? `<div class="note">${msg}</div>` : ''}
     <label class="btn pri" for="docsfile">📥 Add files</label>
     <input id="docsfile" type="file" multiple accept="application/pdf,.pdf,image/*,.png,.jpg,.jpeg,.webp,.heic,.doc,.docx,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden>
@@ -389,6 +454,16 @@ async function renderDocs(msg = '') {
     await store.docDel(id);
     if (location.hash.startsWith('#/docs')) renderDocs('Deleted.');
   }));
+  const open = id => { if (id) showUserDoc(id); };
+  view.querySelectorAll('[data-doc]').forEach(row => {
+    row.addEventListener('click', e => {
+      if (e.target.closest('[data-doc-del]')) return;
+      open(row.getAttribute('data-doc'));
+    });
+    row.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(row.getAttribute('data-doc')); }
+    });
+  });
 }
 function diffSummary(oldD, newD) {
   if (!oldD) return '';
