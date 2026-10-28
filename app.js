@@ -76,7 +76,7 @@ function closeSecfolds(root = view) {
 /** How many recent chips fit between the header and bottom tabs with wrapping rows (display-only; storage is untouched). */
 function recentFitCount() {
   const headerH = document.getElementById('top')?.getBoundingClientRect().height || 0;
-  const tabsH = document.getElementById('tabs')?.getBoundingClientRect().height || 60;
+  const tabsH = document.getElementById('tabs')?.getBoundingClientRect().height || 50;
   const pad = 24; // main#view padding top+bottom
   const heading = 48; // "Recent searches" h2
   const avail = Math.max(0, window.innerHeight - headerH - tabsH - pad - heading);
@@ -682,12 +682,11 @@ setupMic();
 $('#ask').addEventListener('click', e => { e.preventDefault(); openAskSkynet(currentDefect()); });
 const SWIPE = initSwipe({ view, modal: $('#modal'), tabOf: h => tabOf(h || '#/search'), tabHref: t => t === 'search' ? LAST_SEARCH : '#/' + t,
   canGoBack: () => NAVIDX > 0, closeModal, standalone: () => STANDALONE || document.documentElement.dataset.standalone === '1' });
-// Keep #tabs pinned to the layout/physical bottom on iOS.
-// Short pages (empty Search) and the keyboard both shrink visualViewport so
-// position:fixed;bottom:0 rides up. Always counter with translateY (not only
-// while #q is focused — that left Search high whenever the field was blurred).
-// When #q is focused iOS may also shrink window.innerHeight; keep a pre-focus
-// baseline so the gap doesn't collapse to ~0 and skip the pin.
+// Keep #tabs flush to the layout/physical bottom on iOS.
+// visualViewport shrink (short pages, keyboard, chrome) makes fixed;bottom:0 ride
+// up — push it back down. Use a pre-keyboard baseline for innerHeight, then
+// measure the bar's box and correct any remaining shortfall so it actually
+// reaches the bottom (gap math alone was still leaving it high on device).
 (function pinTabsToLayoutBottom() {
   const tabs = document.getElementById('tabs');
   if (!tabs) return;
@@ -698,13 +697,21 @@ const SWIPE = initSwipe({ view, modal: $('#modal'), tabOf: h => tabOf(h || '#/se
     raf = requestAnimationFrame(() => {
       raf = 0;
       const vv = window.visualViewport;
-      if (!vv) { tabs.style.transform = ''; return; }
       const q = document.getElementById('q');
       const focused = !!(q && document.activeElement === q);
-      if (!focused) baselineInnerH = window.innerHeight;
-      const layoutH = focused ? Math.max(baselineInnerH, window.innerHeight) : window.innerHeight;
+      if (!focused) {
+        baselineInnerH = window.innerHeight;
+      }
+      tabs.style.bottom = '0px';
+      tabs.style.transform = 'none';
+      if (!vv) return;
+      const layoutH = Math.max(window.innerHeight, focused ? baselineInnerH : 0);
       const gap = Math.max(0, layoutH - vv.height - vv.offsetTop);
-      tabs.style.transform = gap ? `translateY(${gap}px)` : '';
+      // Measure after reset: how far above the layout bottom is the bar?
+      const rect = tabs.getBoundingClientRect();
+      const shortfall = Math.max(0, layoutH - rect.bottom);
+      const dy = Math.max(gap, shortfall);
+      tabs.style.transform = dy ? `translateY(${dy}px)` : '';
     });
   };
   sync();
