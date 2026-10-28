@@ -64,7 +64,7 @@ function addRecent(q) {
 }
 
 /** Collapsible section: heading looks like h2; body toggles open/closed. Default open. */
-function secfold(titleHtml, bodyHtml, open = true) {
+function secfold(titleHtml, bodyHtml, open = false) {
   return `<details class="secfold"${open ? ' open' : ''}><summary>${titleHtml}</summary><div class="secfold-body">${bodyHtml}</div></details>`;
 }
 /** How many recent chips fit between the header and bottom tabs with wrapping rows (display-only; storage is untouched). */
@@ -209,6 +209,8 @@ function renderSearch(q) {
     if (all.length) {
       let passes = 0;
       const refine = () => {
+        const fold = view.querySelector('.recent-list')?.closest('details');
+        if (fold && !fold.open) return; // closed: hidden list can't be measured; refine on open
         const refined = Math.min(all.length, recentFitCount());
         const list = view.querySelector('.recent-list');
         const shown = list ? list.querySelectorAll('[data-q]').length : 0;
@@ -220,6 +222,8 @@ function renderSearch(q) {
         }
       };
       requestAnimationFrame(refine);
+      const fold = view.querySelector('.recent-list')?.closest('details');
+      if (fold) fold.addEventListener('toggle', () => { if (fold.open) { passes = 0; requestAnimationFrame(refine); } });
     }
     return;
   }
