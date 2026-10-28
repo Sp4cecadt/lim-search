@@ -226,3 +226,11 @@ details:not([open]) > *:not(summary){display:none}
 [data-scheme="ios"] details.secfold > summary{font-size:13px;font-weight:400;letter-spacing:0;color:var(--mute);margin:24px 16px 6px}
 [data-scheme="ios"] details.secfold{border-top:none}
 [data-scheme="manual"] details.secfold > summary{color:var(--h2)}
+
+/* Docs list: preview directly under the file name */
+.row.docrow{align-items:flex-start}
+.row.docrow .docmeta{flex:1;min-width:0;display:flex;flex-direction:column;gap:6px;padding-right:8px}
+.row.docrow .docname{display:block;font-weight:700;line-height:1.25;word-break:break-word}
+.row.docrow .docprev{display:block;width:100%;max-width:360px;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--photo-bg,#f2f2f2);min-height:72px}
+.row.docrow .docprev-img,.row.docrow .docprev-canvas{display:block;width:100%;height:auto;max-height:220px;object-fit:contain;background:#fff;vertical-align:top}
+.row.docrow .btn.danger{flex:none;align-self:flex-start;margin-top:0}

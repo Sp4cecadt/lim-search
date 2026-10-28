@@ -418,15 +418,64 @@ async function showUserDoc(id) {
     </div>`;
   $('#mx').onclick = () => close([u]);
 }
+async function fillDocPreviews(root = view) {
+  for (const el of root.querySelectorAll('[data-doc-prev]')) {
+    if (el.dataset.ready === '1') continue;
+    const id = el.getAttribute('data-doc-prev');
+    const f = await store.docGet(id).catch(() => null);
+    if (!f || !f.blob) { el.innerHTML = '<span class="muted small">No preview</span>'; el.dataset.ready = '1'; continue; }
+    if (docIsImage(f)) {
+      const u = URL.createObjectURL(f.blob);
+      el.innerHTML = `<img class="docprev-img" src="${u}" alt="">`;
+      el.dataset.ready = '1';
+      continue;
+    }
+    if (docIsPdf(f)) {
+      try {
+        const { openPdf } = await import('./js/pdfload.js');
+        const doc = await openPdf(f.blob);
+        const pg = await doc.getPage(1);
+        const maxW = Math.min(el.clientWidth || (window.innerWidth - 72), 360);
+        const vp1 = pg.getViewport({ scale: 1 });
+        const scale = maxW / vp1.width;
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+        const vp = pg.getViewport({ scale: scale * dpr });
+        const c = document.createElement('canvas');
+        c.width = vp.width; c.height = vp.height;
+        c.style.width = maxW + 'px';
+        c.className = 'docprev-canvas';
+        await pg.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise;
+        el.innerHTML = ''; el.appendChild(c);
+        try { await doc.destroy(); } catch (_) {}
+      } catch (e) {
+        el.innerHTML = '<span class="muted small">Preview unavailable</span>';
+      }
+      el.dataset.ready = '1';
+      continue;
+    }
+    el.innerHTML = '<span class="muted small">No preview for this type</span>';
+    el.dataset.ready = '1';
+  }
+}
 async function renderDocs(msg = '') {
   const files = (await store.docAll().catch(() => [])) || [];
   files.sort((a, b) => (b.addedAt || 0) - (a.addedAt || 0));
   const fmt = n => n >= 1e6 ? (n / 1e6).toFixed(1) + ' MB' : n >= 1e3 ? (n / 1e3).toFixed(0) + ' KB' : n + ' B';
   const rows = files.length
-    ? `<div class="card">${files.map(f => `<div class="row docrow" role="button" tabindex="0" data-doc="${esc(f.id)}"><span><b>${esc(f.name)}</b><br><small>${esc(docKind(f))} · ${fmt(f.size || 0)}${f.addedAt ? ' · ' + new Date(f.addedAt).toLocaleString('en-AU') : ''}</small></span><button type="button" class="btn danger" data-doc-del="${esc(f.id)}" aria-label="Delete ${esc(f.name)}">Delete</button></div>`).join('')}</div>`
+    ? `<div class="card">${files.map(f => {
+        const canPrev = docIsPdf(f) || docIsImage(f);
+        return `<div class="row docrow" role="button" tabindex="0" data-doc="${esc(f.id)}">
+          <div class="docmeta">
+            <b class="docname">${esc(f.name)}</b>
+            ${canPrev ? `<div class="docprev" data-doc-prev="${esc(f.id)}"><span class="muted small">Loading preview…</span></div>` : ''}
+            <small>${esc(docKind(f))} · ${fmt(f.size || 0)}${f.addedAt ? ' · ' + new Date(f.addedAt).toLocaleString('en-AU') : ''}</small>
+          </div>
+          <button type="button" class="btn danger" data-doc-del="${esc(f.id)}" aria-label="Delete ${esc(f.name)}">Delete</button>
+        </div>`;
+      }).join('')}</div>`
     : `<div class="card"><p class="muted">No docs on this phone yet. Add PDFs, screenshots, or other files — they stay on the device and aren’t uploaded.</p></div>`;
   view.innerHTML = `<div class="card"><h3>Docs</h3>
-    <p class="muted small">Your own files on this phone (not the Line Inspection Manual). Tap a file to open it. Search/indexing comes later — for now you can add, open, and delete.</p>
+    <p class="muted small">Your own files on this phone (not the Line Inspection Manual). Preview shows under each name; tap a file to open it full screen. Search/indexing comes later.</p>
     ${msg ? `<div class="note">${msg}</div>` : ''}
     <label class="btn pri" for="docsfile">📥 Add files</label>
     <input id="docsfile" type="file" multiple accept="application/pdf,.pdf,image/*,.png,.jpg,.jpeg,.webp,.heic,.doc,.docx,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden>
@@ -464,6 +513,7 @@ async function renderDocs(msg = '') {
       if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(row.getAttribute('data-doc')); }
     });
   });
+  fillDocPreviews(view);
 }
 function diffSummary(oldD, newD) {
   if (!oldD) return '';
@@ -638,11 +688,17 @@ function closeModal() {
   if (location.hash.startsWith('#/page/')) { if (NAVIDX > 0) history.back(); else location.replace('#/search'); return; }
   m.hidden = true; m.innerHTML = '';
 }
+function fillViewHeight() {
+  const headerH = document.getElementById('top')?.offsetHeight || 0;
+  const tabsH = document.getElementById('tabs')?.offsetHeight || 50;
+  view.style.minHeight = Math.max(120, window.innerHeight - headerH - tabsH) + 'px';
+}
 function route() {
   trackHistory();
   const h = location.hash || '#/search';
   const tab = tabOf(h) || 'search';
   document.querySelectorAll('#tabs a').forEach(a => a.classList.toggle('on', a.dataset.tab === tab));
+  fillViewHeight();
   // Dismiss search keyboard when leaving Search so iOS doesn't leave the fixed tab bar raised.
   if (tab !== 'search') { try { $('#q').blur(); } catch (_) {} }
   if (!h.startsWith('#/page/')) { $('#modal').hidden = true; $('#modal').innerHTML = ''; }
@@ -682,11 +738,12 @@ setupMic();
 $('#ask').addEventListener('click', e => { e.preventDefault(); openAskSkynet(currentDefect()); });
 const SWIPE = initSwipe({ view, modal: $('#modal'), tabOf: h => tabOf(h || '#/search'), tabHref: t => t === 'search' ? LAST_SEARCH : '#/' + t,
   canGoBack: () => NAVIDX > 0, closeModal, standalone: () => STANDALONE || document.documentElement.dataset.standalone === '1' });
-// Keep #tabs flush to the layout/physical bottom on iOS.
-// visualViewport shrink (short pages, keyboard, chrome) makes fixed;bottom:0 ride
-// up — push it back down. Use a pre-keyboard baseline for innerHeight, then
-// measure the bar's box and correct any remaining shortfall so it actually
-// reaches the bottom (gap math alone was still leaving it high on device).
+// Keep #tabs matching Browse/Priorities/Manual/Docs (flush, bottom:0).
+// Earlier always-on translateY "pins" left Search sitting high: short Search
+// pages make visualViewport report a gap even with no keyboard, and the
+// counter-transform fought fixed+safe-area. Only nudge while #q is focused
+// and the gap is clearly a keyboard (>= 80px). Otherwise clear transform so
+// Search matches the other tabs exactly.
 (function pinTabsToLayoutBottom() {
   const tabs = document.getElementById('tabs');
   if (!tabs) return;
@@ -696,22 +753,16 @@ const SWIPE = initSwipe({ view, modal: $('#modal'), tabOf: h => tabOf(h || '#/se
     if (raf) return;
     raf = requestAnimationFrame(() => {
       raf = 0;
+      tabs.style.bottom = '0px';
       const vv = window.visualViewport;
       const q = document.getElementById('q');
       const focused = !!(q && document.activeElement === q);
-      if (!focused) {
-        baselineInnerH = window.innerHeight;
-      }
-      tabs.style.bottom = '0px';
-      tabs.style.transform = 'none';
-      if (!vv) return;
-      const layoutH = Math.max(window.innerHeight, focused ? baselineInnerH : 0);
+      if (!focused) baselineInnerH = window.innerHeight;
+      if (!vv || !focused) { tabs.style.transform = ''; return; }
+      const layoutH = Math.max(baselineInnerH, window.innerHeight);
       const gap = Math.max(0, layoutH - vv.height - vv.offsetTop);
-      // Measure after reset: how far above the layout bottom is the bar?
-      const rect = tabs.getBoundingClientRect();
-      const shortfall = Math.max(0, layoutH - rect.bottom);
-      const dy = Math.max(gap, shortfall);
-      tabs.style.transform = dy ? `translateY(${dy}px)` : '';
+      // Ignore small chrome gaps — only counter a real keyboard.
+      tabs.style.transform = gap >= 80 ? `translateY(${gap}px)` : '';
     });
   };
   sync();
@@ -721,6 +772,7 @@ const SWIPE = initSwipe({ view, modal: $('#modal'), tabOf: h => tabOf(h || '#/se
   }
   window.addEventListener('resize', sync);
   window.addEventListener('orientationchange', () => setTimeout(sync, 50));
+  window.addEventListener('hashchange', sync);
   window.addEventListener('focusin', e => {
     if (e.target && e.target.id === 'q') baselineInnerH = Math.max(baselineInnerH, window.innerHeight);
     sync();
