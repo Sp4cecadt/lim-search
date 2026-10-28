@@ -62,16 +62,42 @@ function addRecent(q) {
   const r = [q, ...recent().filter(x => x.toLowerCase() !== q.toLowerCase())].slice(0, RECENT_STORE_CAP);
   localStorage.setItem('recent', JSON.stringify(r));
 }
-/** How many recent rows fit between the header and bottom tabs (display-only; storage is untouched). */
+/** How many recent chips fit between the header and bottom tabs with wrapping rows (display-only; storage is untouched). */
 function recentFitCount() {
   const headerH = document.getElementById('top')?.getBoundingClientRect().height || 0;
   const tabsH = document.getElementById('tabs')?.getBoundingClientRect().height || 54;
   const pad = 24; // main#view padding top+bottom
   const heading = 48; // "Recent searches" h2
   const avail = Math.max(0, window.innerHeight - headerH - tabsH - pad - heading);
-  const probe = document.querySelector('.recent-list [data-q]');
-  const rowH = probe ? (probe.getBoundingClientRect().height + 8) : 52; // chip min-height + gap
-  return Math.max(0, Math.floor(avail / rowH));
+  const list = document.querySelector('.recent-list');
+  const chips = list ? [...list.querySelectorAll('[data-q]')] : [];
+  const listW = (list?.getBoundingClientRect().width) || Math.max(200, window.innerWidth - 32);
+  if (chips.length) {
+    const listTop = list.getBoundingClientRect().top;
+    let fit = 0;
+    for (const c of chips) {
+      if (c.getBoundingClientRect().bottom - listTop <= avail + 0.5) fit++;
+      else break;
+    }
+    const rowH = chips[0].getBoundingClientRect().height + 8;
+    const usedH = chips[fit ? fit - 1 : 0]
+      ? (chips[Math.max(0, fit - 1)].getBoundingClientRect().bottom - listTop)
+      : 0;
+    // If everything painted still fits and there is room for another row, estimate extra capacity
+    if (fit === chips.length && usedH + rowH <= avail + 0.5) {
+      const widths = chips.map(c => c.getBoundingClientRect().width);
+      const avgW = Math.max(48, widths.reduce((a, b) => a + b, 0) / widths.length + 8);
+      const perRow = Math.max(1, Math.floor(listW / avgW));
+      const extraRows = Math.max(0, Math.floor((avail - usedH) / rowH));
+      return fit + extraRows * perRow;
+    }
+    return fit;
+  }
+  // Cold estimate before first paint: wrapping rows × ~avg chip width
+  const rowH = 52;
+  const rows = Math.max(0, Math.floor(avail / rowH));
+  const perRow = Math.max(1, Math.floor(listW / 100));
+  return rows * perRow;
 }
 
 // ---------------- defect card ----------------
@@ -174,16 +200,22 @@ function renderSearch(q) {
     // const tryBlock = `<h2>Try</h2><div class="chips">${EXAMPLES.map(x => `<button class="chip" data-q="${esc(x)}">${esc(x)}</button>`).join('')}</div>`;
     view.innerHTML = `${r.length ? `<h2>Recent searches</h2><div class="recent-list chips">${r.map(x => `<button class="chip" data-q="${esc(x)}">${esc(x)}</button>`).join('')}</div>` : ''}
       <p class="muted small" style="margin-top:18px">Search runs on your phone and works offline. Results show the defect cards first (codes, priorities, severity scale), then everything else the manual says, with page numbers to check.</p>`;
-    // After first paint, refine fit using a real row height if the estimate was off
-    if (all.length) requestAnimationFrame(() => {
-      const refined = recentFitCount();
-      if (refined !== r.length && refined !== fit) {
-        const r2 = all.slice(0, refined);
+    // After first paint, refine fit for wrapping layout (may need a couple passes)
+    if (all.length) {
+      let passes = 0;
+      const refine = () => {
+        const refined = Math.min(all.length, recentFitCount());
         const list = view.querySelector('.recent-list');
-        if (list) list.innerHTML = r2.map(x => `<button class="chip" data-q="${esc(x)}">${esc(x)}</button>`).join('');
-        else if (r2.length) renderSearch('');
-      }
-    });
+        const shown = list ? list.querySelectorAll('[data-q]').length : 0;
+        if (refined !== shown) {
+          const r2 = all.slice(0, refined);
+          if (list) list.innerHTML = r2.map(x => `<button class="chip" data-q="${esc(x)}">${esc(x)}</button>`).join('');
+          else if (r2.length) { renderSearch(''); return; }
+          if (++passes < 3) requestAnimationFrame(refine);
+        }
+      };
+      requestAnimationFrame(refine);
+    }
     return;
   }
   const t0 = performance.now();

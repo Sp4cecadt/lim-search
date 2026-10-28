@@ -1,5 +1,5 @@
 // Offline support: app shell cached on install; everything else stale-while-revalidate.
-const V = 'lim-search-v12';
+const V = 'lim-search-v13';
 const SHELL = ['./', 'index.html', 'app.css', 'app.js', 'manifest.webmanifest', 'js/store.js', 'js/search.js', 'js/synonyms.js', 'js/layout.js', 'js/extract.js', 'js/pdfload.js', 'js/photos.js', 'js/theme.js', 'js/swipe.js',
   'vendor/minisearch.js', 'vendor/pdfjs/pdf.min.mjs', 'vendor/pdfjs/pdf.worker.min.mjs', 'icons/icon-180.png', 'icons/icon-192.png', 'icons/icon-512.png'];
 self.addEventListener('install', e => e.waitUntil(caches.open(V).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())));
