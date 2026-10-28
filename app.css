@@ -51,7 +51,7 @@ header#top{position:sticky;top:0;z-index:5;background:var(--surf);padding:calc(1
 @media (prefers-reduced-motion: reduce){.mic.on{animation:none}}
 .micmsg{margin-top:8px;padding:10px 12px;border-radius:10px;background:var(--surf2);color:var(--fg);font-size:15px}
 main{padding:12px}
-nav#tabs{position:fixed;left:0;right:0;bottom:0;display:flex;background:var(--surf);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom);z-index:6}
+nav#tabs{position:fixed;left:0;right:0;bottom:0;display:flex;background:var(--surf);border-top:1px solid var(--line);padding-bottom:0;z-index:6}
 nav#tabs a{flex:1;text-align:center;color:var(--mute);text-decoration:none;font-size:10px;font-weight:500;padding:5px 0 3px;min-height:44px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;border-top:2px solid transparent;margin-top:-1px;-webkit-tap-highlight-color:transparent}
 nav#tabs a svg{width:22px;height:22px;display:block;flex:0 0 auto} nav#tabs a .tl{line-height:1.1;letter-spacing:.01em}
 nav#tabs a.on{color:var(--ink);border-top-color:var(--acc);font-weight:700} nav#tabs a.on svg{color:var(--acc)}
@@ -59,6 +59,8 @@ h2{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;
 
 /* ---------- Components (flat: solid fills, 1px borders, no gradients/shadows) ---------- */
 .chips{display:flex;flex-wrap:wrap;gap:8px}
+.recent-list{flex-direction:column;flex-wrap:nowrap;align-items:stretch}
+.recent-list .chip{width:100%;text-align:left}
 .chip{border:1px solid var(--line2);background:var(--surf);color:var(--fg);border-radius:999px;padding:10px 14px;font-size:16px;min-height:44px}
 .chip.on{background:var(--acc);color:var(--on-acc);border-color:var(--acc);font-weight:600}
 .card{background:var(--surf);border:1px solid var(--line);border-radius:var(--r);padding:14px;margin:10px 0}

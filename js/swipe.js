@@ -1,7 +1,7 @@
 // Swipe navigation (iOS-style). Right-to-left = next tab; left-to-right = back (closes an open photo/page/card first), else previous tab.
 // Ignores: vertical scrolls, pinch (2+ fingers), page zoom, text selection, form fields, and horizontal scrollers that can still
 // scroll in the swipe direction (a swipe starting at the screen edge always navigates, like the iOS back gesture).
-const TABS = ['search', 'browse', 'cheat', 'manual'];
+const TABS = ['search', 'browse', 'cheat', 'manual', 'docs'];
 const EDGE = 24, LOCK = 12, COMMIT = 60, FLICK_V = 0.45, FLICK_MIN = 28;
 
 export function initSwipe(o) {

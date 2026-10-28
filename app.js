@@ -56,7 +56,23 @@ function snippet(text, terms, len = 260) {
 }
 const passage = id => DATA && DATA.passages.find(p => p.id === id);
 function recent() { try { return JSON.parse(localStorage.getItem('recent') || '[]'); } catch (e) { return []; } }
-function addRecent(q) { q = q.trim(); if (q.length < 2) return; const r = [q, ...recent().filter(x => x.toLowerCase() !== q.toLowerCase())].slice(0, 12); localStorage.setItem('recent', JSON.stringify(r)); }
+const RECENT_STORE_CAP = 200; // keep a long history in storage; on-screen list is capped by layout fit
+function addRecent(q) {
+  q = q.trim(); if (q.length < 2) return;
+  const r = [q, ...recent().filter(x => x.toLowerCase() !== q.toLowerCase())].slice(0, RECENT_STORE_CAP);
+  localStorage.setItem('recent', JSON.stringify(r));
+}
+/** How many recent rows fit between the header and bottom tabs (display-only; storage is untouched). */
+function recentFitCount() {
+  const headerH = document.getElementById('top')?.getBoundingClientRect().height || 0;
+  const tabsH = document.getElementById('tabs')?.getBoundingClientRect().height || 54;
+  const pad = 24; // main#view padding top+bottom
+  const heading = 48; // "Recent searches" h2
+  const avail = Math.max(0, window.innerHeight - headerH - tabsH - pad - heading);
+  const probe = document.querySelector('.recent-list [data-q]');
+  const rowH = probe ? (probe.getBoundingClientRect().height + 8) : 52; // chip min-height + gap
+  return Math.max(0, Math.floor(avail / rowH));
+}
 
 // ---------------- defect card ----------------
 const SKYNET_ID = '3b498f46-4fb4-4a80-ba39-20249f15d21e';
@@ -150,10 +166,23 @@ function renderSearch(q) {
   if ($('#q').value !== q) $('#q').value = q;
   lastQ = q;
   if (!q.trim()) {
-    const r = recent();
-    view.innerHTML = `${r.length ? `<h2>Recent searches</h2><div class="chips">${r.map(x => `<button class="chip" data-q="${esc(x)}">${esc(x)}</button>`).join('')}</div>` : ''}
-      <h2>Try</h2><div class="chips">${EXAMPLES.map(x => `<button class="chip" data-q="${esc(x)}">${esc(x)}</button>`).join('')}</div>
+    const all = recent();
+    const fit = recentFitCount();
+    const r = all.slice(0, fit); // newest first; oldest visible drops off when full — storage keeps the rest
+    // Try/EXAMPLES gated off so Recent can use the space. Restore by uncommenting the Try block below.
+    // const tryBlock = `<h2>Try</h2><div class="chips">${EXAMPLES.map(x => `<button class="chip" data-q="${esc(x)}">${esc(x)}</button>`).join('')}</div>`;
+    view.innerHTML = `${r.length ? `<h2>Recent searches</h2><div class="recent-list chips">${r.map(x => `<button class="chip" data-q="${esc(x)}">${esc(x)}</button>`).join('')}</div>` : ''}
       <p class="muted small" style="margin-top:18px">Search runs on your phone and works offline. Results show the defect cards first (codes, priorities, severity scale), then everything else the manual says, with page numbers to check.</p>`;
+    // After first paint, refine fit using a real row height if the estimate was off
+    if (all.length) requestAnimationFrame(() => {
+      const refined = recentFitCount();
+      if (refined !== r.length && refined !== fit) {
+        const r2 = all.slice(0, refined);
+        const list = view.querySelector('.recent-list');
+        if (list) list.innerHTML = r2.map(x => `<button class="chip" data-q="${esc(x)}">${esc(x)}</button>`).join('');
+        else if (r2.length) renderSearch('');
+      }
+    });
     return;
   }
   const t0 = performance.now();
@@ -270,6 +299,50 @@ async function renderManual(msg = '') {
   $('#pdffile').addEventListener('change', e => e.target.files[0] && doUpdate(e.target.files[0]));
   const ap = $('#addph'); if (ap) ap.addEventListener('click', addPhotosFromStored);
   $('#wipe').addEventListener('click', async () => { if (!confirm('Delete the stored manual, photos and PDF from this phone?')) return; PHOTO_RUN = null; await store.del('manual'); await store.del('meta'); await store.del('pdf'); await store.del('pdfInfo'); await store.del('photoMeta'); await store.photoClear(); PHOTOS = new Set(); PHMETA = null; resetPhotoURLs(); HAS_PDF = false; setData(null, null); renderManual('Deleted.'); });
+}
+async function renderDocs(msg = '') {
+  const files = (await store.docAll().catch(() => [])) || [];
+  files.sort((a, b) => (b.addedAt || 0) - (a.addedAt || 0));
+  const fmt = n => n >= 1e6 ? (n / 1e6).toFixed(1) + ' MB' : n >= 1e3 ? (n / 1e3).toFixed(0) + ' KB' : n + ' B';
+  const kind = f => {
+    const t = (f.type || '').toLowerCase(), n = (f.name || '').toLowerCase();
+    if (t.includes('pdf') || n.endsWith('.pdf')) return 'PDF';
+    if (t.startsWith('image/') || /\.(png|jpe?g|webp|heic)$/.test(n)) return 'Image';
+    if (n.endsWith('.docx') || n.endsWith('.doc') || t.includes('word')) return 'Doc';
+    return t ? t.split('/').pop().toUpperCase() : 'File';
+  };
+  const rows = files.length
+    ? `<div class="card">${files.map(f => `<div class="row" data-doc="${esc(f.id)}"><span><b>${esc(f.name)}</b><br><small>${esc(kind(f))} · ${fmt(f.size || 0)}${f.addedAt ? ' · ' + new Date(f.addedAt).toLocaleString('en-AU') : ''}</small></span><button type="button" class="btn danger" data-doc-del="${esc(f.id)}" aria-label="Delete ${esc(f.name)}">Delete</button></div>`).join('')}</div>`
+    : `<div class="card"><p class="muted">No docs on this phone yet. Add PDFs, screenshots, or other files — they stay on the device and aren’t uploaded.</p></div>`;
+  view.innerHTML = `<div class="card"><h3>Docs</h3>
+    <p class="muted small">Your own files on this phone (not the Line Inspection Manual). Search/indexing comes later — for now you can add, list, and delete.</p>
+    ${msg ? `<div class="note">${msg}</div>` : ''}
+    <label class="btn pri" for="docsfile">📥 Add files</label>
+    <input id="docsfile" type="file" multiple accept="application/pdf,.pdf,image/*,.png,.jpg,.jpeg,.webp,.heic,.doc,.docx,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden>
+  </div>${rows}`;
+  $('#docsfile').addEventListener('change', async e => {
+    const list = [...(e.target.files || [])];
+    e.target.value = '';
+    if (!list.length) return;
+    await store.persist();
+    let n = 0;
+    for (const file of list) {
+      const id = 'd' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+      try {
+        await store.docPut(id, { id, name: file.name, type: file.type || '', size: file.size || 0, addedAt: Date.now(), blob: file });
+        n++;
+      } catch (err) { console.warn('doc save', err); }
+    }
+    if (location.hash.startsWith('#/docs')) renderDocs(n ? `✅ Added ${n} file${n === 1 ? '' : 's'}.` : 'Couldn’t save those files (storage full?).');
+  });
+  view.querySelectorAll('[data-doc-del]').forEach(btn => btn.addEventListener('click', async e => {
+    e.preventDefault(); e.stopPropagation();
+    const id = btn.getAttribute('data-doc-del');
+    const f = files.find(x => x.id === id);
+    if (!confirm(`Delete “${f ? f.name : 'this file'}” from this phone?`)) return;
+    await store.docDel(id);
+    if (location.hash.startsWith('#/docs')) renderDocs('Deleted.');
+  }));
 }
 function diffSummary(oldD, newD) {
   if (!oldD) return '';
@@ -433,7 +506,7 @@ function setupMic() {
 function go(q) { addRecent(q); location.hash = '#/search?q=' + encodeURIComponent(q); }
 // history bookkeeping: each entry gets an index so a back swipe knows whether there is an in-app screen to go back to
 let NAVIDX = -1, LAST_SEARCH = '#/search';
-const tabOf = h => h.startsWith('#/browse') ? 'browse' : h.startsWith('#/cheat') ? 'cheat' : h.startsWith('#/manual') ? 'manual' : h.startsWith('#/search') || !h || h === '#' || h === '#/' ? 'search' : null;
+const tabOf = h => h.startsWith('#/browse') ? 'browse' : h.startsWith('#/cheat') ? 'cheat' : h.startsWith('#/manual') ? 'manual' : h.startsWith('#/docs') ? 'docs' : h.startsWith('#/search') || !h || h === '#' || h === '#/' ? 'search' : null;
 function trackHistory() {
   const st = history.state;
   if (st && typeof st.idx === 'number') NAVIDX = st.idx; else { NAVIDX++; history.replaceState({ ...(st || {}), idx: NAVIDX }, ''); }
@@ -457,6 +530,7 @@ function route() {
   if (tab === 'browse') return renderBrowse();
   if (tab === 'cheat') return renderCheat();
   if (tab === 'manual') return renderManual();
+  if (tab === 'docs') return renderDocs();
   const qm = h.match(/[?&]q=([^&]*)/);
   renderSearch(qm ? decodeURIComponent(qm[1]) : ''); window.scrollTo(0, 0);
 }
@@ -472,6 +546,13 @@ let deb;
 $('#q').addEventListener('input', e => { clearTimeout(deb); deb = setTimeout(() => { const q = e.target.value; if (!location.hash.startsWith('#/search')) location.hash = '#/search'; history.replaceState(history.state, '', '#/search?q=' + encodeURIComponent(q)); LAST_SEARCH = location.hash; renderSearch(q); }, 220); });
 $('#qform').addEventListener('submit', e => { e.preventDefault(); $('#q').blur(); go($('#q').value); });
 window.addEventListener('hashchange', route);
+window.addEventListener('resize', () => {
+  const h = location.hash || '#/search';
+  if (!(h.startsWith('#/search') || h === '' || h === '#' || h === '#/')) return;
+  const qm = h.match(/[?&]q=([^&]*)/);
+  const q = qm ? decodeURIComponent(qm[1]) : '';
+  if (!q.trim()) renderSearch('');
+});
 setupMic();
 $('#ask').addEventListener('click', e => { e.preventDefault(); openAskSkynet(currentDefect()); });
 const SWIPE = initSwipe({ view, modal: $('#modal'), tabOf: h => tabOf(h || '#/search'), tabHref: t => t === 'search' ? LAST_SEARCH : '#/' + t,
