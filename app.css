@@ -205,3 +205,19 @@ html,body{overflow-x:hidden} @supports (overflow:clip){html,body{overflow-x:clip
 .qclear[hidden]{display:none}
 .qclear:active{opacity:.6}
 [data-scheme="ios"] .qclear,[data-scheme="manual"] .qclear{background:transparent;border:0}
+
+/* Section fold: h2-like collapsible headings (search/browse/cheat groups). Scoped so card <details> keep their look. */
+details.secfold{margin:0;border-top:none;padding-top:0}
+details.secfold > summary{
+  font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--mute);
+  margin:22px 4px 8px;min-height:44px;padding:0;display:flex;align-items:center;
+  cursor:pointer;list-style:none;-webkit-tap-highlight-color:transparent
+}
+details.secfold > summary::-webkit-details-marker{display:none}
+details.secfold > summary::before{content:'▸';margin-right:8px;font-weight:700;text-transform:none;letter-spacing:0}
+details.secfold[open] > summary::before{content:'▾'}
+details.secfold > summary small{text-transform:none;letter-spacing:0;font-weight:400;opacity:.85}
+details.secfold > .secfold-body{margin:0}
+[data-scheme="ios"] details.secfold > summary{font-size:13px;font-weight:400;letter-spacing:0;color:var(--mute);margin:24px 16px 6px}
+[data-scheme="ios"] details.secfold{border-top:none}
+[data-scheme="manual"] details.secfold > summary{color:var(--h2)}
