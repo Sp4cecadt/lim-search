@@ -39,6 +39,29 @@ function setData(d, meta) {
 
 // ---------------- helpers ----------------
 const lvClass = l => 'lv-' + String(l || '').replace(/\s+/g, '');
+// Severity cell colours copied from the manual's own cell shading (scale[].c, read from the PDF drawings).
+// Severity cell colour helpers: the colour comes from the uploaded PDF (see the manual key, section 1.1.3).
+const hexRGB = c => [1, 3, 5].map(i => parseInt(c.slice(i, i + 2), 16));
+const sevTone = c => { if (!c || !/^#[0-9A-F]{6}$/i.test(c)) return null; const [r, g, b] = hexRGB(c);
+  if (r > 200 && r - g > 50 && r - b > 50 && Math.abs(g - b) < 25) return 'red'; if (Math.max(r, g, b) - Math.min(r, g, b) <= 12 && r < 240) return 'grey'; return 'other'; };
+const cellCls = c => { const t = sevTone(c); return t ? ' sevc sev-' + t : (c === undefined ? ' sevc sev-none' : ''); };
+function cellStyle(c) {
+  if (!c || !/^#[0-9A-F]{6}$/i.test(c)) return '';
+  const [r, g, b] = hexRGB(c); const L = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+  return ` style="background:${c};color:${L > 0.55 ? '#1a1a1a' : '#fff'}" title="Manual cell colour ${c}"`;
+}
+function sevKey(d) {
+  if (!(+((DATA && DATA.meta && DATA.meta.extractorVersion) || 0) >= 1.2)) return `<div class="sevkey small muted">Cell colours not read from your manual yet. They’re added automatically from the stored PDF (Manual tab). Until then, check the colour on the card’s page.</div>`;
+  const t = new Set(d.scale.map(s => sevTone(s.c)));
+  const bits = [];
+  if (t.has('red')) bits.push('<span class="sevsw" style="background:#FFA29B"></span> Red = raise a defect');
+  if (t.has('grey')) bits.push('<span class="sevsw" style="background:#AEAAAA"></span> Grey = no defect');
+  if (t.has(null)) bits.push('<span class="sevsw" style="background:transparent"></span> no shading in the manual');
+  const zc = d.scale.find(s => s.level === 'Z Code' && s.c);
+  if (zc) bits.push(`<span class="sevsw" style="background:${zc.c}"></span> Z Code row as shaded in the manual`);
+  if (d.scale.some(s => sevTone(s.c) === 'other' && !(zc && s.c === zc.c))) bits.push('other colours as printed');
+  return bits.length ? `<div class="sevkey small muted">${bits.join(' · ')} <span class="nowrap">(manual key §1.1.3, ${pageLink(10)})</span></div>` : '';
+}
 const pageLink = (p, label) => `<a class="pg" href="#/page/${p}">p.${p}${label ? ` <small>(${esc(label)})</small>` : ''}</a>`;
 function hl(text, terms) {
   let h = esc(text);
@@ -167,7 +190,7 @@ function defectCard(d, { open = false, terms = [] } = {}) {
     const g = new Map(); for (const q of d.quickCodes) { if (!g.has(q.group)) g.set(q.group, []); g.get(q.group).push(q.code); }
     kv.push(['Quick code', [...g].map(([grp, codes]) => `${grp ? `<div class="small muted">${esc(grp)} &gt;</div>` : ''}${codes.map(c => `<span class="qc">${esc(c)}</span>`).join(' ')}`).join('')]);
   }
-  const scale = d.scale.length ? `<table class="scale">${(() => { let g = null, h = ''; for (const s of d.scale) { if (s.group && s.group !== g) { g = s.group; h += `<tr><td colspan="2" class="muted small"><b>${esc(g)}</b></td></tr>`; } h += `<tr><td class="l ${lvClass(s.level)}">${esc(s.level)}</td><td>${hl(s.text, terms).replace(/\[(Z Code[^\]]*)\]/gi, '<span class="zt">[$1]</span>')}</td></tr>`; } return h; })()}</table>` : '';
+  const scale = d.scale.length ? `<table class="scale">${(() => { let g = null, h = ''; for (const s of d.scale) { if (s.group && s.group !== g) { g = s.group; h += `<tr><td colspan="2" class="muted small"><b>${esc(g)}</b></td></tr>`; } h += `<tr><td class="l ${lvClass(s.level)}${cellCls(s.c)}"${cellStyle(s.c)}>${esc(s.level)}</td><td>${hl(s.text, terms).replace(/\[([^\]]*Z Code[^\]]*)\]/gi, '<span class="zt">[$1]</span>')}</td></tr>`; } return h; })()}</table>${sevKey(d)}` : '';
   const refs = [`Card ${pageLink(d.page, d.pageLabel)}${d.endPage > d.page ? `–${d.endPage}` : ''}`];
   if (d.summaryPage) refs.push(`Summary table ${pageLink(d.summaryPage)}`);
   if (d.inZIndex) refs.push(`App. 1 Z index ${pageLink(d.inZIndex)}`);
@@ -520,13 +543,13 @@ function diffSummary(oldD, newD) {
   const key = d => d.section + '|' + d.title.toLowerCase();
   const om = new Map(oldD.defects.map(d => [key(d), d])), nm = new Map(newD.defects.map(d => [key(d), d]));
   const added = [...nm.keys()].filter(k => !om.has(k)), removed = [...om.keys()].filter(k => !nm.has(k));
-  const sig = d => JSON.stringify([d.severityRange, d.priorityRange, d.quickCodes, d.scale.map(s => [s.level, s.text])]);
+  const sig = d => JSON.stringify([d.severityRange, d.priorityRange, d.quickCodes, d.scale.map(s => [s.level, s.text, s.c || ''])]);
   const changed = [...nm.keys()].filter(k => om.has(k) && sig(om.get(k)) !== sig(nm.get(k)));
   const list = (a, m) => a.slice(0, 15).map(k => '• ' + esc(m.get(k).title) + ' (p.' + m.get(k).page + ')').join('<br>');
   return `<b>Changes vs previous version:</b> ${added.length} new, ${removed.length} removed, ${changed.length} changed cards.` +
     (added.length ? `<br><br><b>New:</b><br>${list(added, nm)}` : '') + (removed.length ? `<br><br><b>Removed:</b><br>${list(removed, om)}` : '') + (changed.length ? `<br><br><b>Changed:</b><br>${list(changed, nm)}` : '');
 }
-let PHOTO_RUN = null;
+let PHOTO_RUN = null, UPGRADING = false;
 const bg = t => { const e = $('#bgtask'); if (!e) return; e.hidden = !t; e.innerHTML = t || ''; };
 async function doUpdate(file, { fromStored = false } = {}) {
   const prog = $('#prog');
@@ -784,5 +807,28 @@ document.getElementById('tabs')?.addEventListener('click', e => {
   if (e.target.closest('a')) { try { document.getElementById('q').blur(); } catch (_) {} }
 });
 if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(() => {});
-loadData().then(route);
+loadData().then(route).then(() => setTimeout(upgradeStoredManual, 1500));
+// Data read by an older extractor (< 1.2) has no severity cell colours. Re-read the stored PDF on the phone and
+// swap the new data in. Card ids and photo examples are unchanged by 1.2, so stored photos are kept.
+async function upgradeStoredManual() {
+  try {
+    if (!DATA || +DATA.meta.extractorVersion >= 1.2 || PHOTO_RUN || UPGRADING) return;
+    const blob = await store.get('pdf'); if (!blob) return;
+    UPGRADING = true;
+    bg('🎨 Adding the manual’s severity colours (red / grey) from your stored PDF…');
+    const { extractFromPdf } = await import('./js/pdfload.js');
+    const nd = await extractFromPdf(blob, p => { if (p.phase === 'text') bg(`🎨 Adding severity colours: page ${p.done} of ${p.total}<br><progress max="${p.total}" value="${p.done}"></progress>`); });
+    const old = DATA;
+    const same = nd.defects.length === old.defects.length && nd.defects.every((d, i) => d.id === old.defects[i].id && d.title === old.defects[i].title && d.examples.length === old.defects[i].examples.length);
+    if (!same) { // layout changed between versions: keep the old cards, copy colours onto matching rows only
+      const byId = new Map(nd.defects.map(d => [d.id + '|' + d.title, d]));
+      for (const d of old.defects) { const n = byId.get(d.id + '|' + d.title); if (!n) continue;
+        for (const s of d.scale) { const m = n.scale.find(x => x.level === s.level && x.text === s.text && x.p === s.p); if (m && m.c) s.c = m.c; } }
+      old.meta.extractorVersion = nd.meta.extractorVersion; old.meta.coloursMerged = true;
+      await store.set('manual', old); setData(old, META);
+    } else { await store.set('manual', nd); setData(nd, META); }
+    bg(''); route();
+  } catch (e) { console.error(e); bg(''); }
+  finally { UPGRADING = false; }
+}
 window.__lim = { get navIdx() { return NAVIDX; }, swipe: SWIPE, askSkynetText, askSkynetLinks, currentDefect, openAskSkynet, get data() { return DATA; }, get photos() { return PHOTOS; }, get photoMeta() { return PHMETA; }, get photoRun() { return !!PHOTO_RUN; } };

@@ -1,11 +1,15 @@
 // Shared extraction logic: used by the box build (Node) and the in-app "Update manual" (browser).
 // Input: pages from layoutPage(); output: structured manual data. Never invents content:
 // every field is copied from the page text, with its PDF page number.
-export const EXTRACTOR_VERSION = '1.1';
+export const EXTRACTOR_VERSION = '1.2'; // 1.2: severity cell fill colours (scale[].c)
+import { colourAt } from './fills.js';
 
 const FOOT = /This document is not to be copied|©\s*SA Power Networks|^Page \d+ of \d+$|^\.$|^express permission/;
-const LEVEL_RE = /^(?:\d\s+)?(Extreme|Very High|High|Moderate|Low|New|Nil|End of Life)\b\s*(.*)$/;
+const LEVEL_RE = /^(?:\d\s+)?(Extreme|Very High|High|Moderate|Low|New|Nil|End of Life|Z Code)\b\s*(.*)$/;
 const LABELS = ['Defect Severity Range', 'Defect Priority Range', 'Defect Condition Range', 'Quick Code', 'Details', 'Record Condition Only'];
+// a details sentence that merely starts with a level word (e.g. "Low severity …", "High density …", "Low voltage …").
+// A real scale row has the level in its own cell (a column gap before the text); prose has the next word in the same run.
+const PROSE_RE = /^(severity|density|voltage)\b/i;
 const TAG_RE = /\[\s*(Severity|Priority|Condition)\s*:\s*([^\]]+?)\s*\]/g;
 
 const norm = s => s.toLowerCase().replace(/&/g, ' and ').replace(/(\D)\/|\/(\D)/g, '$1 $2').replace(/[’']/g, '').replace(/[^a-z0-9/]+/g, ' ').replace(/\b(or|and|the|a|an|on|in|of|to|with|is|are)\b/g, ' ').replace(/\s+/g, ' ').trim();
@@ -43,13 +47,15 @@ function cleanPage(pg) {
     }
     lines.push({ segs: l.segs, txt, y: l.y });
   });
-  return { n: pg.n, w: pg.w, label, header: header || null, lines };
+  return { n: pg.n, w: pg.w, label, header: header || null, lines, fills: pg.fills || null };
 }
 const isBlank = l => !l.txt;
 
 export function extractManual(rawPages, info = {}) {
   const pages = rawPages.map(cleanPage);
   const P = n => pages[n - 1];
+  // fill colour of the severity label cell (manual §1.1.3: Red = raise a defect, Grey = no defect); null if not read
+  const cellCol = l => { const pg = P(l.pn), s0 = l.segs && l.segs[0]; if (!pg || !pg.fills || !s0 || l.y == null) return null; return colourAt(pg.fills, s0.x + 3, l.y - 3) || colourAt(pg.fills, s0.x + 3, l.y - 1); };
   // ---------- meta ----------
   const firstTxt = pages.slice(0, 3).map(p => p.lines.map(l => l.txt).join('\n')).join('\n');
   const meta = {
@@ -190,6 +196,10 @@ export function extractManual(rawPages, info = {}) {
     let mode = null, si = 0;
     const scale = [];
     let lastLevel = null, group = null, indentBuf = [], centred = false;
+    // A line ending in ':' is a chart heading unless it reads as a sentence lead-in ("It is …:", "If …:", "… as below:")
+    // or is the wrapped last line of a longer sentence.
+    const proseLabel = (l, si) => { if (/^(it is|if|when|where|note|determine|for details)\b|\b(below|follows|if)\s*:$/i.test(l.txt)) return true;
+      const pv = stream[si - 1]; return !!(pv && pv.txt && pv.pn === l.pn && !/[.:;!?)\]]$/.test(pv.txt.trim()) && !LEVEL_RE.test((pv.segs && pv.segs[0] && pv.segs[0].s) || '') && Math.abs(l.y - pv.y) < 16); };
     const lineTxt = l => l.segs.map(s => s.s).join('  ');
     for (; si < stream.length; si++) {
       const l = stream[si];
@@ -210,36 +220,36 @@ export function extractManual(rawPages, info = {}) {
       const lv = s0.s.match(LEVEL_RE);
       const leftEdge = s0.x < P(l.pn).w * 0.17;
       if (lastLevel && lastLevel.pendingNum && !lastLevel.level && lv && leftEdge) {
-        lastLevel.level = lv[1]; delete lastLevel.pendingNum;
+        lastLevel.level = lv[1]; lastLevel.c = cellCol(l) || lastLevel.c; delete lastLevel.pendingNum;
         const rest = [lv[2], ...l.segs.slice(1).map(s => s.s)].filter(Boolean).join(' ');
         if (rest) lastLevel.text += ' ' + rest; continue;
       }
       if (lv && leftEdge && l.segs.length === 1 && !lv[2] && /^(Extreme|Very High|High|Moderate|Low)$/.test(s0.s) && indentBuf.length) {
         // level label vertically centred beside its text block: pull the indented lines above it
         const pulled = indentBuf.map(ix => f.det[ix]); for (const ix of indentBuf.slice().reverse()) f.det.splice(ix, 1);
-        scale.push({ level: lv[1], text: pulled.join(' '), group, p: l.pn }); lastLevel = scale[scale.length - 1]; indentBuf = []; centred = true; continue;
+        scale.push({ level: lv[1], text: pulled.join(' '), group, p: l.pn, c: cellCol(l) }); lastLevel = scale[scale.length - 1]; indentBuf = []; centred = true; continue;
       }
-      if (lv && leftEdge && (l.segs.length >= 2 || lv[2] || /^\d\s/.test(s0.s)) && !/[.]$/.test(lv[2] || '') ) {
+      if (lv && leftEdge && (l.segs.length >= 2 || lv[2] || /^\d\s/.test(s0.s)) && !/[.]$/.test(lv[2] || '') && !(lv[2] && !/^\d\s/.test(s0.s) && (l.segs.length === 1 || PROSE_RE.test(lv[2])))) {
         const rest = [lv[2], ...l.segs.slice(1).map(s => s.s)].filter(Boolean).join(' ');
-        scale.push({ level: lv[1], text: rest, group, p: l.pn }); lastLevel = scale[scale.length - 1];
+        scale.push({ level: lv[1], text: rest, group, p: l.pn, c: cellCol(l) }); lastLevel = scale[scale.length - 1];
         continue;
       }
       if (/^\d$/.test(s0.s) && leftEdge) { // e.g. "2" on one line, "Moderate" on the next
-        scale.push({ level: '', text: l.segs.slice(1).map(s => s.s).join(' '), group, p: l.pn, pendingNum: s0.s }); lastLevel = scale[scale.length - 1]; continue;
+        scale.push({ level: '', text: l.segs.slice(1).map(s => s.s).join(' '), group, p: l.pn, pendingNum: s0.s, c: cellCol(l) }); lastLevel = scale[scale.length - 1]; continue;
       }
       if (lastLevel) {
         if (!leftEdge || /^(OR|AND)$/.test(l.txt)) { lastLevel.text += ' ' + joined; continue; }
         const lv2 = l.txt.match(/^(Extreme|Very High|High|Moderate|Low)\b\s*(.*)$/);
-        if (lv2 && lastLevel.pendingNum && !lastLevel.level) { lastLevel.level = lv2[1]; delete lastLevel.pendingNum; if (lv2[2]) lastLevel.text += ' ' + lv2[2]; continue; }
+        if (lv2 && lastLevel.pendingNum && !lastLevel.level) { lastLevel.level = lv2[1]; lastLevel.c = cellCol(l) || lastLevel.c; delete lastLevel.pendingNum; if (lv2[2]) lastLevel.text += ' ' + lv2[2]; continue; }
       }
       // ordinary details line (or a heading between two scales, e.g. "LV Crossarm Bolts or Nuts:")
-      if (scale.length && /:$/.test(l.txt) && l.txt.length < 70) { group = l.txt.replace(/:$/, ''); lastLevel = null; continue; }
+      if (scale.length && /:$/.test(l.txt) && l.txt.length < 70 && !proseLabel(l, si)) { group = l.txt.replace(/:$/, ''); lastLevel = null; continue; }
       lastLevel = null;
       if (!leftEdge) indentBuf.push(f.det.length); else indentBuf = [];
-      if (/:$/.test(l.txt) && l.txt.length < 70 && stream.slice(si + 1, si + 5).some(x => x.segs && x.segs[0] && x.segs.length >= 2 && LEVEL_RE.test(x.segs[0].s))) { group = l.txt.replace(/:$/, ''); f.det.push(lineTxt(l)); continue; }
+      if (/:$/.test(l.txt) && l.txt.length < 70 && !proseLabel(l, si) && stream.slice(si + 1, si + 7).some(x => x.segs && x.segs[0] && x.segs.length >= 2 && LEVEL_RE.test(x.segs[0].s))) { group = l.txt.replace(/:$/, ''); f.det.push(lineTxt(l)); continue; }
       f.det.push(lineTxt(l));
     }
-    for (const sc of scale) { sc.z = /\[Z Code[^\]]*\]/i.test(sc.text); sc.text = sc.text.replace(/\s+/g, ' ').trim(); delete sc.pendingNum; if (!sc.group) delete sc.group; }
+    for (const sc of scale) { sc.z = sc.level === 'Z Code' || /\[[^\]]*Z Code[^\]]*\]/i.test(sc.text); sc.text = sc.text.replace(/\s+/g, ' ').trim(); delete sc.pendingNum; if (!sc.group) delete sc.group; if (!sc.c) delete sc.c; }
     // quick codes
     const qcs = []; let grp = '';
     for (const raw of f.qc) {
@@ -260,13 +270,13 @@ export function extractManual(rawPages, info = {}) {
       if (l.txt && /:$/.test(l.txt) && l.txt.length < 60 && l.segs.length === 1) { g2 = l.txt.replace(/:$/, ''); }
       const s0 = l.segs[0], lv = s0 && s0.s.match(LEVEL_RE);
       if (lv && l.segs.length >= 2 && !lv[2] && s0.x < P(l.pn).w * 0.17 && !/\[\s*(Severity|Priority|Condition)\s*:/.test(l.txt)) {
-        last2 = { level: lv[1], text: l.segs.slice(1).map(x => x.s).join(' '), group: g2 || 'Further chart', p: l.pn }; scale.push(last2); continue;
+        last2 = { level: lv[1], text: l.segs.slice(1).map(x => x.s).join(' '), group: g2 || 'Further chart', p: l.pn, c: cellCol(l) }; scale.push(last2); continue;
       }
       if (last2 && l.txt && s0.x >= P(l.pn).w * 0.17 && !/\[/.test(l.txt)) { last2.text += ' ' + l.segs.map(x => x.s).join(' '); continue; }
       if (!l.txt) last2 = null;
       bucket.push(l);
     }
-    for (const sc of scale) { sc.z = /\[Z Code[^\]]*\]|Z code/i.test(sc.text); sc.text = sc.text.replace(/\s+/g, ' ').trim(); if (!sc.group) delete sc.group; }
+    for (const sc of scale) { sc.z = sc.level === 'Z Code' || /\[[^\]]*Z Code[^\]]*\]|Z code/i.test(sc.text); sc.text = sc.text.replace(/\s+/g, ' ').trim(); if (!sc.group) delete sc.group; }
     flushB();
     // tags that spilled over to the top of the next page belong to the previous example
     for (let i = ex.length - 1; i > 0; i--) if (!ex[i].caption && ex[i].p === ex[i - 1].p + 1 && ex[i].y0 < 90) { ex[i - 1].tags.push(...ex[i].tags); ex.splice(i, 1); }
@@ -303,7 +313,7 @@ export function extractManual(rawPages, info = {}) {
   for (const r of summaryRows) {
     let bd = null, bs = 0;
     for (const d of out) { let s = sim(r.title, d.title); if (s > 0 && r.section && d.section === r.section) s += 0.01; if (s > bs) { bs = s; bd = d; } }
-    if (bd && bs >= 0.7) { if (!bd.summaryPage) bd.summaryPage = r.p; bd.summary = bd.summary || r; }
+    if (bd && bs >= 0.7) { if (!bd.summary) { bd.summary = r; bd.summaryPage = r.p; } }
     else out.push({ id: 'd' + (out.length + 1), num: null, title: r.title, kind: 'Summary table only', section: r.section || '', sectionTitle: (toc.find(t => t.num === r.section) || {}).title || '',
       page: r.p, pageLabel: P(r.p).label, endPage: r.p, severityRange: r.severity || null, severityByBfra: null, priorityRange: null, priorityByBfra: null, conditionRange: null,
       zCode: /Z Code/i.test(r.details), breakdown: /Breakdown/i.test(r.details), quickCodes: r.quickCode ? [{ group: '', code: r.quickCode, raw: true }] : [], details: r.details, scale: [], examples: [], summaryPage: r.p });
@@ -313,7 +323,7 @@ export function extractManual(rawPages, info = {}) {
   for (const d of out) {
     const nt = norm(d.title);
     const hit = summaryPages.find(p => norm(p.lines.map(l => l.segs.map(s => s.s).join(' ')).join(' ')).includes(nt) && p.lines.some(l => /Quick Code/.test(l.txt)));
-    if (hit) d.summaryPage = hit.n;
+    if (hit && !d.summary) d.summaryPage = hit.n; // a matched summary row wins: a page-wide text hit can be a mention in another row's details
   }
   // ---------- key passages (verbatim, anchored) ----------
   const passages = extractPassages(pages);
@@ -421,7 +431,7 @@ function parseIndex(pages, startRe, endRe, defects) {
         if (/^(Section|APPENDIX)/.test(t)) continue;
         const m = t.match(/^(\d+(?:\.\d+)+)\s*(.*)$/);
         let num = null;
-        if (m) { num = m[1]; t = m[2]; if (!t) continue; if (num.split('.').length === 2) { sec = { num, title: t }; continue; } }
+        if (m) { num = m[1]; t = m[2]; if (!t) continue; if (num.split('.').length === 2) { sec = { num, title: t }; if (!defects.some(d => d.section === num && norm(t) === norm(d.title))) continue; } } // a section heading can itself be the card (e.g. 10.2)
         items.push({ secNum: num ? num.split('.').slice(0, 2).join('.') : sec?.num, secTitle: sec?.title, num, name: t, page: p.n });
       }
     }

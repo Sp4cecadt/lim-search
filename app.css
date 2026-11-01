@@ -179,8 +179,8 @@ input.filter:focus{outline:none;border-color:var(--acc)}
 [data-scheme="ios"] .sw[aria-pressed="true"]{box-shadow:inset 0 0 0 2px var(--acc)}
 
 /* ---------- LIM Manual scheme: colours sampled from the Line Inspection Manual PDF (colour values only).
-   Cover band teal #44B6B0 -> header; heading / table-header orange #ED7D31 -> accent; severity key salmon #FFA29B (Extreme-High)
-   and grey #AEAAAA (Moderate-Low) -> severity scale labels; logo grey #57585B -> secondary text. Badges unchanged. ---------- */
+   Cover band teal #44B6B0 -> header; heading / table-header orange #ED7D31 -> accent; severity cells use each card's own shading from the PDF (Red #FFA29B = defect, Grey #AEAAAA = no defect)
+   ; logo grey #57585B -> secondary text. Badges unchanged. ---------- */
 :root[data-scheme="manual"]{--acc:#ed7d31;--on-acc:#1a1a1a;--ink:#f0894a;--soft:rgba(237,125,49,.22);--sb:#2a7f7a;
   --mhdr:#0b2523;--mhdr-fg:#e8f6f5;--mhdr-mute:#8fcfca;--mq:#123a37;--mq-line:#2a7f7a;--sev-hi:#ffa29b;--sev-lo:#aeaaaa;--sev-fg:#2b0d08;--h2:#f0894a}
 :root[data-mode="light"][data-scheme="manual"]{--acc:#ed7d31;--on-acc:#1a1a1a;--ink:#b4520f;--soft:#fde3d2;--mute:#57585b;
@@ -193,9 +193,8 @@ input.filter:focus{outline:none;border-color:var(--acc)}
 [data-scheme="manual"] .askbtn{background:var(--acc);color:var(--on-acc);border-color:var(--acc)}
 [data-scheme="manual"] #sbband{background:var(--mhdr)} :root[data-mode="light"][data-scheme="manual"] #sbband{background:var(--sb)}
 [data-scheme="manual"] h2{color:var(--h2)}
-[data-scheme="manual"] table.scale td.l{font-style:italic;color:var(--sev-fg)}
-[data-scheme="manual"] table.scale td.l.lv-Extreme,[data-scheme="manual"] table.scale td.l.lv-VeryHigh,[data-scheme="manual"] table.scale td.l.lv-High{background:var(--sev-hi);color:var(--sev-fg)}
-[data-scheme="manual"] table.scale td.l.lv-Moderate,[data-scheme="manual"] table.scale td.l.lv-Low{background:var(--sev-lo);color:#1a1a1a}
+[data-scheme="manual"] table.scale td.l{font-style:italic}
+/* severity cell backgrounds now come from the manual itself (per card, inline style from scale[].c), never a fixed per-level guess */
 
 @media (prefers-contrast: more){:root[data-mode="dark"]{--mute:#d5dde6;--line:#55657a;--line2:#6a7a8f}:root[data-mode="light"]{--mute:#353c44;--line:#9aa3ae;--line2:#7d8794}}
 [hidden]{display:none !important}
@@ -234,3 +233,10 @@ details:not([open]) > *:not(summary){display:none}
 .row.docrow .docprev{display:block;width:100%;max-width:360px;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--photo-bg,#f2f2f2);min-height:72px}
 .row.docrow .docprev-img,.row.docrow .docprev-canvas{display:block;width:100%;height:auto;max-height:220px;object-fit:contain;background:#fff;vertical-align:top}
 .row.docrow .btn.danger{flex:none;align-self:flex-start;margin-top:0}
+
+/* Severity cells: background = the manual's own shading for that card (Red = raise a defect, Grey = no defect; manual §1.1.3 p.10) */
+table.scale td.l.sevc{border-left:1px solid var(--line);border-right:1px solid var(--line)}
+table.scale td.l.sev-red,table.scale td.l.sev-grey,table.scale td.l.sev-other{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.sevkey{margin:2px 0 8px;line-height:1.5}
+.sevkey .sevsw{min-height:0;padding:0;gap:0;display:inline-block;width:12px;height:12px;border:1px solid var(--line);border-radius:2px;vertical-align:-1px;margin-right:2px}
+.nowrap{white-space:nowrap}
