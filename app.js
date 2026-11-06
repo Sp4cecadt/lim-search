@@ -506,7 +506,7 @@ function renderSearch(q) {
     // const tryBlock = `<h2>Try</h2><div class="chips">${EXAMPLES.map(x => `<button class="chip" data-q="${esc(x)}">${esc(x)}</button>`).join('')}</div>`;
     // Recent is permanently open (plain h2 — not a secfold; never collapses).
     view.innerHTML = `${r.length ? `<h2>Recent searches</h2><div class="recent-list chips">${r.map(x => `<button class="chip" data-q="${esc(x)}">${esc(x)}</button>`).join('')}</div>` : ''}
-      <p class="muted small" style="margin-top:18px">Search runs on your phone and works offline. Results show the defect cards first (codes, priorities, severity scale), then everything else the manual says, with page numbers to check.</p>`;
+      `;
     // After first paint, refine fit for wrapping layout (may need a couple passes)
     if (all.length) {
       let passes = 0;
