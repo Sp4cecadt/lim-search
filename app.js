@@ -480,12 +480,25 @@ async function fillDocPreviews(root = view) {
     el.dataset.ready = '1';
   }
 }
+function showInlineDocPreview(row, id) {
+  if (!row || !id) return;
+  view.querySelectorAll('.docprev').forEach(el => {
+    if (el.getAttribute('data-doc-prev') !== id) el.remove();
+  });
+  if (row.querySelector('[data-doc-prev]')) return;
+  const box = document.createElement('div');
+  box.className = 'docprev';
+  box.setAttribute('data-doc-prev', id);
+  box.innerHTML = '<span class="muted small">Loading preview…</span>';
+  const meta = row.querySelector('.docmeta');
+  (meta || row).appendChild(box);
+  fillDocPreviews(row);
+}
 let DOC_SEC = 'work'; // 'work' = how-to-work-object manuals; 'defect' = defect information
 async function renderDocs(msg = '') {
   const all = (await store.docAll().catch(() => [])) || [];
   const files = all.filter(f => !f.section || f.section === DOC_SEC);
   files.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'en', { sensitivity: 'base' }));
-  const fmt = n => n >= 1e6 ? (n / 1e6).toFixed(1) + ' MB' : n >= 1e3 ? (n / 1e3).toFixed(0) + ' KB' : n + ' B';
   const qfilter = (($('#q') && $('#q').value) || '').trim();
   const shown = qfilter ? files.filter(f => (f.name || '').toLowerCase().includes(qfilter.toLowerCase())) : files;
   const groupName = DOC_SEC === 'defect' ? 'defect documents' : 'work object manuals';
@@ -494,12 +507,9 @@ async function renderDocs(msg = '') {
     : !shown.length
     ? `<div class="card"><p class="muted">No docs match “${esc(qfilter)}”.</p></div>`
     : `<div class="card">${shown.map(f => {
-        const canPrev = docIsPdf(f) || docIsImage(f);
-        return `<div class="row docrow" role="button" tabindex="0" data-doc="${esc(f.id)}">
+        return `<div class="row docrow" role="button" tabindex="0" data-doc="${esc(f.id)}" aria-label="${esc(f.name)}">
           <div class="docmeta">
             <b class="docname">${esc(f.name)}</b>
-            ${canPrev ? `<div class="docprev" data-doc-prev="${esc(f.id)}"><span class="muted small">Loading preview…</span></div>` : ''}
-            <small>${esc(docKind(f))} · ${fmt(f.size || 0)}${f.addedAt ? ' · ' + new Date(f.addedAt).toLocaleString('en-AU') : ''}</small>
           </div>
           <button type="button" class="btn danger" data-doc-del="${esc(f.id)}" aria-label="Delete ${esc(f.name)}">Delete</button>
         </div>`;
@@ -509,7 +519,7 @@ async function renderDocs(msg = '') {
       <button type="button" class="chip${DOC_SEC === 'work' ? ' on' : ''}" data-doc-sec="work" role="tab" aria-selected="${DOC_SEC === 'work'}">Work objects</button>
       <button type="button" class="chip${DOC_SEC === 'defect' ? ' on' : ''}" data-doc-sec="defect" role="tab" aria-selected="${DOC_SEC === 'defect'}">Defects</button>
     </div>
-    <p class="muted small">Your own files on this phone (not the Line Inspection Manual). Work objects is for manuals on how to work objects. Defects is for defect-related information. Files you add go into the selected group. Preview shows under each name; tap a file to open it full screen. Use the search bar to filter these files.</p>
+    <p class="muted small">Your own files on this phone (not the Line Inspection Manual). Work objects is for manuals on how to work objects. Defects is for defect-related information. Files you add go into the selected group. Tap a name once for a thumbnail preview; double-tap to open the file. Use the search bar to filter these files.</p>
     ${msg ? `<div class="note">${msg}</div>` : ''}
     <label class="btn pri" for="docsfile">📥 Add files</label>
     <input id="docsfile" type="file" multiple accept="application/pdf,.pdf,image/*,.png,.jpg,.jpeg,.webp,.heic,.doc,.docx,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden>
@@ -542,17 +552,25 @@ async function renderDocs(msg = '') {
     await store.docDel(id);
     if (location.hash.startsWith('#/docs')) renderDocs('Deleted.');
   }));
-  const open = id => { if (id) showUserDoc(id); };
+  let lastDocTap = { id: null, t: 0 };
   view.querySelectorAll('[data-doc]').forEach(row => {
     row.addEventListener('click', e => {
       if (e.target.closest('[data-doc-del]')) return;
-      open(row.getAttribute('data-doc'));
+      const id = row.getAttribute('data-doc');
+      const now = Date.now();
+      if (lastDocTap.id === id && now - lastDocTap.t < 400) {
+        lastDocTap = { id: null, t: 0 };
+        showUserDoc(id);
+        return;
+      }
+      lastDocTap = { id, t: now };
+      showInlineDocPreview(row, id);
     });
     row.addEventListener('keydown', e => {
-      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(row.getAttribute('data-doc')); }
+      if (e.key === 'Enter') { e.preventDefault(); showUserDoc(row.getAttribute('data-doc')); }
+      if (e.key === ' ') { e.preventDefault(); showInlineDocPreview(row, row.getAttribute('data-doc')); }
     });
   });
-  fillDocPreviews(view);
 }
 function diffSummary(oldD, newD) {
   if (!oldD) return '';
