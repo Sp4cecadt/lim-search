@@ -868,7 +868,7 @@ async function renderDocs(msg = '') {
       <button type="button" class="chip${DOC_SEC === 'defect' ? ' on' : ''}" data-doc-sec="defect" role="tab" aria-selected="${DOC_SEC === 'defect'}">Inspection info</button>
       <button type="button" class="chip${DOC_SEC === 'mdms' ? ' on' : ''}" data-doc-sec="mdms" role="tab" aria-selected="${DOC_SEC === 'mdms'}">MDMS</button>
     </div>
-    <p class="muted small">Your own files on this phone (not the Line Inspection Manual). Manuals is for manuals on how to work objects. Inspection info is for defect-related information. MDMS is a separate group for MDMS files. Files you add go into the selected group. Tap a name once for a thumbnail preview (it disappears on its own). Double-tap to open the file. Use the search bar to filter these files.</p>
+    
     ${msg ? `<div class="note">${msg}</div>` : ''}
     <label class="btn pri" for="docsfile">📥 Add files</label>
     <input id="docsfile" type="file" multiple accept="application/pdf,.pdf,image/*,.png,.jpg,.jpeg,.webp,.heic,.doc,.docx,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden>
