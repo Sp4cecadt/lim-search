@@ -480,14 +480,17 @@ async function fillDocPreviews(root = view) {
     el.dataset.ready = '1';
   }
 }
+let DOC_SEC = 'work'; // 'work' = how-to-work-object manuals; 'defect' = defect information
 async function renderDocs(msg = '') {
-  const files = (await store.docAll().catch(() => [])) || [];
+  const all = (await store.docAll().catch(() => [])) || [];
+  const files = all.filter(f => !f.section || f.section === DOC_SEC);
   files.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'en', { sensitivity: 'base' }));
   const fmt = n => n >= 1e6 ? (n / 1e6).toFixed(1) + ' MB' : n >= 1e3 ? (n / 1e3).toFixed(0) + ' KB' : n + ' B';
   const qfilter = (($('#q') && $('#q').value) || '').trim();
   const shown = qfilter ? files.filter(f => (f.name || '').toLowerCase().includes(qfilter.toLowerCase())) : files;
+  const groupName = DOC_SEC === 'defect' ? 'defect documents' : 'work object manuals';
   const rows = !files.length
-    ? `<div class="card"><p class="muted">No docs on this phone yet. Add PDFs, screenshots, or other files — they stay on the device and aren’t uploaded.</p></div>`
+    ? `<div class="card"><p class="muted">${all.length ? `No ${groupName} in this group yet. Add files while this group is selected.` : 'No docs on this phone yet. Add PDFs, screenshots, or other files — they stay on the device and aren’t uploaded.'}</p></div>`
     : !shown.length
     ? `<div class="card"><p class="muted">No docs match “${esc(qfilter)}”.</p></div>`
     : `<div class="card">${shown.map(f => {
@@ -502,7 +505,11 @@ async function renderDocs(msg = '') {
         </div>`;
       }).join('')}</div>`;
   view.innerHTML = `<div class="card"><h3>Docs</h3>
-    <p class="muted small">Your own files on this phone (not the Line Inspection Manual). Preview shows under each name; tap a file to open it full screen. Use the search bar to filter these files.</p>
+    <div class="chips docsubs" role="tablist" aria-label="Doc groups">
+      <button type="button" class="chip${DOC_SEC === 'work' ? ' on' : ''}" data-doc-sec="work" role="tab" aria-selected="${DOC_SEC === 'work'}">Work objects</button>
+      <button type="button" class="chip${DOC_SEC === 'defect' ? ' on' : ''}" data-doc-sec="defect" role="tab" aria-selected="${DOC_SEC === 'defect'}">Defects</button>
+    </div>
+    <p class="muted small">Your own files on this phone (not the Line Inspection Manual). Work objects is for manuals on how to work objects. Defects is for defect-related information. Files you add go into the selected group. Preview shows under each name; tap a file to open it full screen. Use the search bar to filter these files.</p>
     ${msg ? `<div class="note">${msg}</div>` : ''}
     <label class="btn pri" for="docsfile">📥 Add files</label>
     <input id="docsfile" type="file" multiple accept="application/pdf,.pdf,image/*,.png,.jpg,.jpeg,.webp,.heic,.doc,.docx,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden>
@@ -516,12 +523,17 @@ async function renderDocs(msg = '') {
     for (const file of list) {
       const id = 'd' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
       try {
-        await store.docPut(id, { id, name: file.name, type: file.type || '', size: file.size || 0, addedAt: Date.now(), blob: file });
+        await store.docPut(id, { id, name: file.name, type: file.type || '', size: file.size || 0, addedAt: Date.now(), section: DOC_SEC, blob: file });
         n++;
       } catch (err) { console.warn('doc save', err); }
     }
     if (location.hash.startsWith('#/docs')) renderDocs(n ? `✅ Added ${n} file${n === 1 ? '' : 's'}.` : 'Couldn’t save those files (storage full?).');
   });
+  view.querySelectorAll('[data-doc-sec]').forEach(btn => btn.addEventListener('click', e => {
+    e.preventDefault(); e.stopPropagation();
+    const sec = btn.getAttribute('data-doc-sec');
+    if (sec === 'work' || sec === 'defect') { DOC_SEC = sec; renderDocs(); }
+  }));
   view.querySelectorAll('[data-doc-del]').forEach(btn => btn.addEventListener('click', async e => {
     e.preventDefault(); e.stopPropagation();
     const id = btn.getAttribute('data-doc-del');
