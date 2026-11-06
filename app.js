@@ -236,8 +236,64 @@ function notesBody(d) {
     const where = d.section ? ` (§${esc(d.section)}${d.sectionTitle ? ' ' + esc(d.sectionTitle) : ''})` : '';
     return `<p class="muted small">No notes in “${esc(NOTES.fileName || 'your file')}” matched this card${where}. Headings in the file should use the manual’s section numbers, for example “6.2 Standard Poles”.</p>`;
   }
-  return items.map(it => `<div class="ex">${it.heading ? `<b>${esc(it.heading)}</b>` : ''}<div class="pre small">${esc(it.text)}</div></div>`).join('')
+  return items.map(it => `<div class="ex note-entry" data-note-si="${it.si}">
+      <div class="pre small" data-note-hold="${it.si}">${esc(it.text)}</div>
+      <div class="note-actions">
+        <button type="button" class="btn" data-edit-note="${it.si}">Edit</button>
+        <button type="button" class="btn danger" data-del-note="${it.si}">Delete</button>
+      </div>
+    </div>`).join('')
     + `<button type="button" class="btn" data-copy-notes="${esc(d.id)}">Copy notes</button>`;
+}
+async function persistNotesLocal() {
+  if (!NOTES) return;
+  await store.set('defectNotes', NOTES);
+}
+function refreshNotesPopBody() {
+  const el = document.getElementById('notes-pop');
+  if (!el || el.hidden || notesPopId == null) return;
+  const d = ENG && ENG.byId.get(notesPopId);
+  const body = el.querySelector('.notes-pop-body');
+  if (!d || !body) return;
+  body.innerHTML = notesBody(d);
+  bindNoteHold(body);
+}
+function startEditNote(si) {
+  const el = document.getElementById('notes-pop');
+  if (!el || !NOTES || !NOTES.sections || !NOTES.sections[si]) return;
+  const entry = el.querySelector(`.note-entry[data-note-si="${si}"]`);
+  if (!entry) return;
+  const cur = NOTES.sections[si].text || '';
+  entry.innerHTML = `<textarea class="note-edit" rows="8" aria-label="Edit note">${esc(cur)}</textarea>
+    <div class="note-actions">
+      <button type="button" class="btn pri" data-save-note="${si}">Save</button>
+      <button type="button" class="btn" data-cancel-note="${si}">Cancel</button>
+    </div>`;
+  const ta = entry.querySelector('textarea');
+  if (ta) { ta.focus(); try { ta.setSelectionRange(ta.value.length, ta.value.length); } catch (_) {} }
+}
+function bindNoteHold(root) {
+  if (!root) return;
+  let timer = null, si = null, moved = false;
+  const clear = () => { if (timer) clearTimeout(timer); timer = null; si = null; };
+  root.querySelectorAll('[data-note-hold]').forEach(node => {
+    const begin = e => {
+      if (e.type === 'mousedown' && e.button !== 0) return;
+      moved = false;
+      si = +node.getAttribute('data-note-hold');
+      timer = setTimeout(() => { const n = si; clear(); if (Number.isFinite(n)) startEditNote(n); }, 500);
+    };
+    const move = () => { moved = true; clear(); };
+    const end = () => { clear(); };
+    node.addEventListener('touchstart', begin, { passive: true });
+    node.addEventListener('touchmove', move, { passive: true });
+    node.addEventListener('touchend', end);
+    node.addEventListener('touchcancel', end);
+    node.addEventListener('mousedown', begin);
+    node.addEventListener('mousemove', () => { if (timer) move(); });
+    node.addEventListener('mouseup', end);
+    node.addEventListener('mouseleave', end);
+  });
 }
 let notesPopId = null;
 function closeNotesPop() {
@@ -266,7 +322,37 @@ function openNotesPop(d, btn) {
     el.addEventListener('click', e => {
       if (e.target.closest('[data-close-notes]')) { e.preventDefault(); closeNotesPop(); return; }
       const cn = e.target.closest('[data-copy-notes]');
-      if (cn) { e.preventDefault(); copyNotesFor(cn); }
+      if (cn) { e.preventDefault(); copyNotesFor(cn); return; }
+      const ed = e.target.closest('[data-edit-note]');
+      if (ed) { e.preventDefault(); startEditNote(+ed.getAttribute('data-edit-note')); return; }
+      const can = e.target.closest('[data-cancel-note]');
+      if (can) { e.preventDefault(); refreshNotesPopBody(); return; }
+      const sv = e.target.closest('[data-save-note]');
+      if (sv) {
+        e.preventDefault();
+        const si = +sv.getAttribute('data-save-note');
+        const entry = sv.closest('.note-entry');
+        const ta = entry && entry.querySelector('textarea.note-edit');
+        if (!NOTES || !NOTES.sections || !NOTES.sections[si] || !ta) return;
+        const next = ta.value.replace(/\r\n/g, '\n');
+        if (!next.trim()) {
+          if (!confirm('This note is empty. Delete it?')) return;
+          NOTES.sections.splice(si, 1);
+        } else {
+          NOTES.sections[si].text = next;
+        }
+        persistNotesLocal().then(refreshNotesPopBody).catch(err => console.warn('notes save', err));
+        return;
+      }
+      const del = e.target.closest('[data-del-note]');
+      if (del) {
+        e.preventDefault();
+        const si = +del.getAttribute('data-del-note');
+        if (!NOTES || !NOTES.sections || !NOTES.sections[si]) return;
+        if (!confirm('Delete this note? It will be removed from notes on this phone.')) return;
+        NOTES.sections.splice(si, 1);
+        persistNotesLocal().then(refreshNotesPopBody).catch(err => console.warn('notes delete', err));
+      }
     });
   }
   notesPopId = d.id;
@@ -289,6 +375,7 @@ function openNotesPop(d, btn) {
       <div class="notes-pop-bar"><span class="t">${barTitle}</span><button type="button" class="btn" data-close-notes aria-label="Close">✕</button></div>
       <div class="notes-pop-body">${notesBody(d)}</div>
     </div>`;
+  bindNoteHold(el.querySelector('.notes-pop-body'));
 }
 function toggleNotesPop(d, btn) {
   if (notesPopId === d.id) { closeNotesPop(); return; }
@@ -326,7 +413,7 @@ function defectCard(d, { open = false, terms = [] } = {}) {
     const g = new Map(); for (const q of d.quickCodes) { if (!g.has(q.group)) g.set(q.group, []); g.get(q.group).push(q.code); }
     kv.push(['Quick code', [...g].map(([grp, codes]) => `${grp ? `<div class="small muted">${esc(grp)} &gt;</div>` : ''}${codes.map(c => `<span class="qc">${esc(c)}</span>`).join(' ')}`).join('')]);
   }
-  const scale = d.scale.length ? `<table class="scale">${(() => { let g = null, h = ''; for (const s of d.scale) { if (s.group && s.group !== g) { g = s.group; h += `<tr><td colspan="2" class="muted small"><b>${esc(g)}</b></td></tr>`; } h += `<tr><td class="l ${lvClass(s.level)}${cellCls(s.c)}"${cellStyle(s.c)}>${esc(s.level)}</td><td>${hl(s.text, terms).replace(/\[([^\]]*Z Code[^\]]*)\]/gi, '<span class="zt">[$1]</span>')}</td></tr>`; } return h; })()}</table>${sevKey(d)}` : '';
+  const scale = d.scale.length ? `<table class="scale">${(() => { let g = null, h = ''; for (const s of d.scale) { if (s.group && s.group !== g) { g = s.group; h += `<tr><td colspan="2" class="muted small"><b>${esc(g)}</b></td></tr>`; } h += `<tr><td class="l ${lvClass(s.level)}${cellCls(s.c)}"${cellStyle(s.c)}>${esc(s.level)}</td><td>${hl(s.text, terms).replace(/\[([^\]]*Z Code[^\]]*)\]/gi, '<span class="zt">[$1]</span>')}</td></tr>`; } return h; })()}</table>` : '';
   const refs = [`Card ${pageLink(d.page, d.pageLabel)}${d.endPage > d.page ? `–${d.endPage}` : ''}`];
   if (d.summaryPage) refs.push(`Summary table ${pageLink(d.summaryPage)}`);
   if (d.inZIndex) refs.push(`App. 1 Z index ${pageLink(d.inZIndex)}`);

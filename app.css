@@ -79,6 +79,11 @@ h2{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;
 .notes-pop-bar .t{flex:1;font-weight:700;font-size:16px;line-height:1.25;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .notes-pop-body{flex:1;overflow:auto;-webkit-overflow-scrolling:touch;padding:10px}
 .notes-pop-body .btn{margin-top:10px}
+.note-entry{margin-bottom:12px}
+.note-entry .pre{margin:0}
+.note-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.note-actions .btn{margin-top:0;min-height:44px;padding:10px 14px}
+.note-edit{width:100%;box-sizing:border-box;min-height:140px;padding:10px;font:inherit;font-size:15px;line-height:1.4;border:1px solid var(--line);border-radius:8px;background:var(--surf);color:inherit;resize:vertical}
 .sec{color:var(--mute);font-size:14px}
 .badges{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
 .b{font-size:13px;font-weight:700;padding:4px 9px;border-radius:6px;background:var(--surf2);border:1px solid var(--line);color:var(--fg)}

@@ -260,7 +260,8 @@ export function notesForDefect(notes, d) {
   const titleN = norm(d.title);
   const secTitleN = norm(d.sectionTitle);
   const scored = [];
-  for (const s of notes.sections) {
+  for (let si = 0; si < notes.sections.length; si++) {
+    const s = notes.sections[si];
     if (!s.text) continue;
     let score = 0;
     const nums = s.nums || [];
@@ -282,7 +283,7 @@ export function notesForDefect(notes, d) {
     if (secNum && secTitleN && s.headingNorm && s.headingNorm.includes(secTitleN) && nums.includes(secNum)) {
       score = Math.max(score, 210);
     }
-    if (score) scored.push({ score, heading: s.heading, text: s.text });
+    if (score) scored.push({ score, heading: s.heading, text: s.text, si });
   }
   scored.sort((a, b) => b.score - a.score || a.heading.localeCompare(b.heading));
   const seen = new Set();
