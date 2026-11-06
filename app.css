@@ -44,7 +44,7 @@ header#top{position:sticky;top:0;z-index:5;background:var(--surf);padding:calc(1
 #q::placeholder{color:var(--mute)}
 #q:focus{border-color:var(--acc);box-shadow:inset 0 0 0 1px var(--acc)}
 .hdrbtn{width:48px;height:48px;min-width:48px;min-height:48px;flex:none;padding:0;display:inline-flex;align-items:center;justify-content:center;border-radius:var(--r);border:1px solid var(--line2);background:var(--surf2);color:var(--fg);-webkit-tap-highlight-color:transparent}
-.hdrbtn svg{width:24px;height:24px;display:block}
+.hdrbtn svg{width:32px;height:32px;display:block}
 .mic{width:48px;height:48px;min-width:48px;min-height:48px;flex:none;font-size:22px;border-radius:var(--r);border:1px solid var(--line2);background:var(--surf2);color:var(--fg)}
 .askbtn{background:var(--acc);color:var(--on-acc);border-color:var(--acc)}
 .askbtn:active{opacity:.85}
@@ -68,9 +68,9 @@ h2{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;
 .docsubs{margin:12px 0 8px}
 .card{background:var(--surf);border:1px solid var(--line);border-radius:var(--r);padding:14px;margin:10px 0}
 .card h3{margin:0 0 4px;font-size:20px;font-weight:700;line-height:1.25;letter-spacing:-.01em}
-.card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin:0 0 4px}
+.card-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 4px}
 .card-head h3{margin:0;flex:1;min-width:0}
-.btn-notes{flex:none;align-self:flex-start;padding:8px 12px;font-size:15px;white-space:nowrap}
+.btn-notes{flex:none;align-self:center;padding:8px 12px;font-size:15px;white-space:nowrap}
 .notes-pop{position:fixed;inset:0;z-index:25}
 .notes-pop[hidden]{display:none!important}
 .notes-pop-scrim{position:absolute;inset:0;background:var(--scrim)}
@@ -252,13 +252,44 @@ details:not([open]) > *:not(summary){display:none}
 .row.docrow .docprev-img,.row.docrow .docprev-canvas{display:block;width:100%;height:auto;max-height:220px;object-fit:contain;background:#fff;vertical-align:top}
 .row.docrow .btn.danger{flex:none;align-self:flex-start;margin-top:0}
 
-/* Search Defect cards: Notes + LIM details sit above cards; first pair levels with the secfold label. */
+/* Search Defect cards: Notes + LIM details on an in-flow heading row (no absolute overlap on cards). */
 .defect-cards-block{position:relative}
-.defect-cards-block > details.secfold > summary{padding-right:210px;box-sizing:border-box}
-.defect-cards-block:has(> details.secfold:not([open])) > .defect-card-tools-heading{display:none}
-.defect-card-tools{display:flex;flex-wrap:wrap;justify-content:flex-end;align-items:center;gap:8px;margin:8px 4px 0}
-.defect-card-tools-heading{position:absolute;top:22px;right:4px;z-index:3;margin:0;max-width:min(100%, 280px);align-items:flex-start}
-[data-scheme="ios"] .defect-card-tools-heading{top:24px;right:16px}
+.defect-cards-heading-row{
+  display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:8px;
+  margin:22px 4px 8px;min-height:44px
+}
+[data-scheme="ios"] .defect-cards-heading-row{margin:24px 16px 6px}
+.defect-cards-toggle{
+  flex:1 1 auto;min-width:0;margin:0;padding:0;border:0;background:transparent;cursor:pointer;
+  font:inherit;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--mute);
+  display:inline-flex;align-items:center;min-height:44px;text-align:left;
+  -webkit-tap-highlight-color:transparent
+}
+.defect-cards-toggle::before{content:'▾';margin-right:8px;font-weight:700;text-transform:none;letter-spacing:0}
+.defect-cards-block.is-collapsed .defect-cards-toggle::before{content:'▸'}
+.defect-cards-toggle small{text-transform:none;letter-spacing:0;font-weight:400;opacity:.85}
+[data-scheme="ios"] .defect-cards-toggle{font-size:13px;font-weight:400;letter-spacing:0;color:var(--mute)}
+[data-scheme="manual"] .defect-cards-toggle{color:var(--h2)}
+.defect-cards-block.is-collapsed .defect-cards-body,
+.defect-cards-block.is-collapsed .defect-card-tools-heading{display:none}
+.defect-card-tools{display:flex;flex-wrap:wrap;justify-content:flex-end;align-items:center;gap:8px;margin:8px 4px 10px}
+.defect-card-tools-heading{
+  position:static;z-index:auto;margin:0;max-width:min(100%, 280px);
+  align-items:center;height:auto;flex:0 1 auto
+}
+.defect-card-tools-heading:has(.lim-details-ext[open]){flex:1 1 100%;max-width:100%}
+/* Matching compact boxes for LIM details + Notes above defect cards */
+.defect-card-tools .lim-details-ext > summary,
+.defect-card-tools .btn-notes{
+  box-sizing:border-box;
+  display:inline-flex;align-items:center;justify-content:center;
+  min-height:36px;height:36px;padding:6px 12px;font-size:15px;line-height:1.2;
+  border:1px solid var(--line2);border-radius:10px;white-space:nowrap
+}
+[data-scheme="ios"] .defect-card-tools .lim-details-ext > summary,
+[data-scheme="ios"] .defect-card-tools .btn-notes{
+  border:0;background:var(--fill);color:var(--ink);font-weight:600
+}
 .lim-details-ext{margin:0;border-top:none;padding-top:0;flex:none}
 .lim-details-ext > summary{
   min-height:auto;padding:8px 12px;font-size:15px;font-weight:600;line-height:1.2;

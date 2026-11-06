@@ -501,7 +501,15 @@ function renderSearch(q) {
     });
     if (r.defects.length > 2) body += `<div class="card">${r.defects.slice(2).map(x => `<a class="row" href="#/d/${x.d.id}"><span>${hl(x.d.title, terms)}<br><small>§${esc(x.d.section)} ${esc(x.d.sectionTitle)} · p.${x.d.page}</small></span><span>${x.d.zCode ? '<span class="b z">Z</span>' : ''}${x.d.breakdown ? ' <span class="b bd">BD</span>' : ''} ›</span></a>`).join('')}</div>`;
     const headingTools = defectTools(top[0].d, true);
-    h += `<div class="defect-cards-block">${headingTools}${secfold(`Defect cards ${r.mode === 'any' ? '<small>(partial match)</small>' : ''}`, body, true)}</div>`;
+    const defectTitle = `Defect cards ${r.mode === 'any' ? '<small>(partial match)</small>' : ''}`;
+    // In-flow heading row: title + tools share one flex row so open LIM details pushes cards down (no absolute overlap).
+    h += `<div class="defect-cards-block">` +
+      `<div class="defect-cards-heading-row">` +
+      `<button type="button" class="defect-cards-toggle" aria-expanded="true" aria-controls="defect-cards-body">${defectTitle}</button>` +
+      `${headingTools}` +
+      `</div>` +
+      `<div class="defect-cards-body" id="defect-cards-body">${body}</div>` +
+      `</div>`;
   }
   if (r.quickCodes.length) h += secfold('Quick codes (§14.2)', `<div class="card">${r.quickCodes.map(c => `<div class="row"><span><span class="qc">${esc(c.group ? c.group + ' > ' : '')}${hl(c.name, terms)}</span><br><small>${hl(c.desc, terms)}</small></span><span><span class="b">${esc(c.type)}</span> ${pageLink(c.p)}</span></div>`).join('')}</div>`);
   if (r.chunks.length) {
@@ -1097,6 +1105,17 @@ view.addEventListener('click', e => {
   if (cn) {
     e.preventDefault();
     copyNotesFor(cn);
+    return;
+  }
+  const dct = e.target.closest('.defect-cards-toggle');
+  if (dct) {
+    e.preventDefault();
+    const block = dct.closest('.defect-cards-block');
+    if (block) {
+      const open = dct.getAttribute('aria-expanded') !== 'true';
+      dct.setAttribute('aria-expanded', open ? 'true' : 'false');
+      block.classList.toggle('is-collapsed', !open);
+    }
     return;
   }
   const bk = e.target.closest('[data-back]'); if (bk) { e.preventDefault(); if (NAVIDX > 0) history.back(); else location.replace(LAST_SEARCH); return; }
