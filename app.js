@@ -864,8 +864,8 @@ async function renderDocs(msg = '') {
       }).join('')}</div>`;
   view.innerHTML = `<div class="card"><div class="docs-heading-row"><h3>Docs</h3><label class="btn pri" for="docsfile">📥 Add files</label></div>
     <div class="chips docsubs" role="tablist" aria-label="Doc groups">
-      <button type="button" class="chip${DOC_SEC === 'work' ? ' on' : ''}" data-doc-sec="work" role="tab" aria-selected="${DOC_SEC === 'work'}">Manuals</button>
       <button type="button" class="chip${DOC_SEC === 'defect' ? ' on' : ''}" data-doc-sec="defect" role="tab" aria-selected="${DOC_SEC === 'defect'}">Inspection info</button>
+      <button type="button" class="chip${DOC_SEC === 'work' ? ' on' : ''}" data-doc-sec="work" role="tab" aria-selected="${DOC_SEC === 'work'}">Manuals</button>
       <button type="button" class="chip${DOC_SEC === 'mdms' ? ' on' : ''}" data-doc-sec="mdms" role="tab" aria-selected="${DOC_SEC === 'mdms'}">MDMS</button>
     </div>
     
@@ -1323,7 +1323,25 @@ window.__lim = { get navIdx() { return NAVIDX; }, swipe: SWIPE, askSkynetText, a
 // Resting place: heading tools row, right of Notes. While in use it pins (position:fixed) where it is so it
 // never slides away under the finger; unpins after 5s with no screen interaction; any scroll re-shows it.
 (() => {
-  let idx = 0, pinned = false, ph = null, timer = null, lastRect = null, selfScroll = false;
+  let idx = 0, pinned = false, ph = null, timer = null, lastRect = null, selfScroll = false, focusId = null;
+  // Green focus mark beside the heading of the current defect (wherever that defect is shown).
+  const idOf = t => {
+    if (!t) return null;
+    if (t.matches('a.row')) return (t.getAttribute('href') || '').replace('#/d/', '') || null;
+    let n = t.nextElementSibling;
+    while (n && !n.matches('article.card.defect')) n = n.nextElementSibling;
+    const a = n && n.querySelector('.card-head h3 a[href^="#/d/"]');
+    return a ? a.getAttribute('href').replace('#/d/', '') : null;
+  };
+  const markFocus = () => {
+    view.querySelectorAll('.dc-focus').forEach(el => el.classList.remove('dc-focus'));
+    if (!focusId) return;
+    const sel = `a[href="#/d/${CSS.escape(focusId)}"]`;
+    view.querySelectorAll(`article.card.defect .card-head h3 ${sel}`).forEach(a => a.closest('h3').classList.add('dc-focus'));
+    view.querySelectorAll(`a.row${sel} > span:first-child`).forEach(s => s.classList.add('dc-focus'));
+    const m = (location.hash || '').match(/^#\/d\/(\w+)/);
+    if (m && m[1] === focusId) view.querySelectorAll('article.card.defect .card-head h3').forEach(h => h.classList.add('dc-focus'));
+  };
   const IDLE = 5000;
   const btnEl = () => document.getElementById('cycle');
   const count = () => view.querySelectorAll('[data-dc]').length;
@@ -1360,7 +1378,12 @@ window.__lim = { get navIdx() { return NAVIDX; }, swipe: SWIPE, askSkynetText, a
     const vw = (window.visualViewport && window.visualViewport.width) || window.innerWidth;
     return { left: Math.max(8, vw - r.width - 16), top: hb + 8, width: r.width, height: r.height };
   };
-  new MutationObserver(() => { idx = 0; lastRect = null; unpin(); }).observe(view, { childList: true });
+  new MutationObserver(() => {
+    idx = 0; lastRect = null; unpin();
+    const ts = [...view.querySelectorAll('[data-dc]')];
+    if (ts.length >= 2) focusId = idOf(ts[0]);
+    markFocus();
+  }).observe(view, { childList: true });
   // Any screen interaction keeps it alive while pinned.
   ['pointerdown', 'touchstart', 'click'].forEach(ev => document.addEventListener(ev, () => { if (pinned) arm(); }, { passive: true, capture: true }));
   // Scrolling (either direction) re-shows it if it has gone off screen, and resets the idle timer.
@@ -1380,6 +1403,7 @@ window.__lim = { get navIdx() { return NAVIDX; }, swipe: SWIPE, askSkynetText, a
     const hdr = document.getElementById('top');
     const off = (hdr ? hdr.getBoundingClientRect().bottom : 0) + 8;
     window.scrollTo({ top: ts[idx].getBoundingClientRect().top + window.scrollY - off, behavior: 'smooth' });
+    focusId = idOf(ts[idx]); markFocus();
     btn.textContent = `${idx + 1} / ${n}`;
     btn.setAttribute('aria-label', `Next defect card, ${idx + 1} of ${n}`);
     btn.title = `Defect card ${idx + 1} of ${n}`;
