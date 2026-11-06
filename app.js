@@ -538,7 +538,9 @@ function renderSearch(q) {
         ? `<button type="button" class="btn btn-lim" data-open-lim="${esc(d.id)}" aria-label="LIM details">LIM details</button><template class="lim-tpl">${hl(d.details, terms)}</template>`
         : '';
       const notes = `<button type="button" class="btn btn-notes" data-open-notes="${esc(d.id)}" aria-label="Notes">Notes</button>`;
-      return `<div class="defect-card-tools${heading ? ' defect-card-tools-heading' : ''}">${lim}${notes}</div>`;
+      const n = r.defects.length;
+      const cyc = heading && n > 1 ? `<button type="button" class="btn btn-cycle" id="cycle" aria-label="Next defect card, 1 of ${n}" title="Defect card 1 of ${n}">1 / ${n}</button>` : '';
+      return `<div class="defect-card-tools${heading ? ' defect-card-tools-heading' : ''}">${lim}${notes}${cyc}</div>`;
     };
     const top = r.defects.slice(0, 2);
     let body = '';
@@ -1288,32 +1290,21 @@ async function upgradeStoredManual() {
 }
 window.__lim = { get navIdx() { return NAVIDX; }, swipe: SWIPE, askSkynetText, askSkynetLinks, currentDefect, openAskSkynet, get data() { return DATA; }, get photos() { return PHOTOS; }, get photoMeta() { return PHMETA; }, get photoRun() { return !!PHOTO_RUN; } };
 
-// ---------------- defect card cycler (header far-right) ----------------
+// ---------------- defect card cycler (Defect cards heading row) ----------------
 (() => {
-  const btn = document.getElementById('cycle');
-  if (!btn) return;
   let idx = 0;
-  const targets = () => [...view.querySelectorAll('[data-dc]')];
-  const label = n => {
+  new MutationObserver(() => { idx = 0; }).observe(view, { childList: true });
+  view.addEventListener('click', e => {
+    const btn = e.target.closest('#cycle');
+    if (!btn) return;
+    e.preventDefault();
+    const ts = [...view.querySelectorAll('[data-dc]')]; const n = ts.length; if (n < 2) return;
+    idx = (idx + 1) % n;
+    const hdr = document.getElementById('top');
+    const off = (hdr ? hdr.getBoundingClientRect().bottom : 0) + 8;
+    window.scrollTo({ top: ts[idx].getBoundingClientRect().top + window.scrollY - off, behavior: 'smooth' });
     btn.textContent = `${idx + 1} / ${n}`;
     btn.setAttribute('aria-label', `Next defect card, ${idx + 1} of ${n}`);
     btn.title = `Defect card ${idx + 1} of ${n}`;
-  };
-  const update = () => {
-    const n = targets().length;
-    idx = 0;
-    if (n > 1) { btn.classList.remove('is-off'); btn.removeAttribute('aria-hidden'); btn.tabIndex = 0; label(n); }
-    else { btn.classList.add('is-off'); btn.setAttribute('aria-hidden', 'true'); btn.tabIndex = -1; btn.textContent = ''; }
-  };
-  new MutationObserver(update).observe(view, { childList: true });
-  btn.addEventListener('click', () => {
-    const ts = targets(); const n = ts.length; if (n < 2) return;
-    idx = (idx + 1) % n;
-    const el = ts[idx];
-    const hdr = document.getElementById('top');
-    const off = (hdr ? hdr.getBoundingClientRect().bottom : 0) + 8;
-    window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - off, behavior: 'smooth' });
-    label(n);
   });
-  update();
 })();

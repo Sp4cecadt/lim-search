@@ -276,14 +276,15 @@ details:not([open]) > *:not(summary){display:none}
   margin:8px 4px 10px;position:relative;overflow:visible
 }
 .defect-card-tools-heading{
-  position:relative;z-index:auto;margin:0;max-width:min(100%, 280px);
+  position:relative;z-index:auto;margin:0;max-width:min(100%, 360px);
   align-items:center;height:auto;flex:0 0 auto
 }
 .defect-card-tools:has(.lim-details-ext[open]){z-index:12}
 /* Matching compact boxes for LIM details + Notes above defect cards */
 .defect-card-tools .lim-details-ext > summary,
 .defect-card-tools .btn-lim,
-.defect-card-tools .btn-notes{
+.defect-card-tools .btn-notes,
+.defect-card-tools .btn-cycle{
   box-sizing:border-box;
   display:inline-flex;align-items:center;justify-content:center;
   min-height:36px;height:36px;padding:6px 12px;font-size:15px;line-height:1.2;
@@ -291,7 +292,8 @@ details:not([open]) > *:not(summary){display:none}
 }
 [data-scheme="ios"] .defect-card-tools .lim-details-ext > summary,
 [data-scheme="ios"] .defect-card-tools .btn-lim,
-[data-scheme="ios"] .defect-card-tools .btn-notes{
+[data-scheme="ios"] .defect-card-tools .btn-notes,
+[data-scheme="ios"] .defect-card-tools .btn-cycle{
   border:0;background:var(--fill);color:var(--ink);font-weight:600
 }
 /* Spacer keeps Notes/LIM layout stable when Notes is lifted above the scrim */
@@ -345,7 +347,6 @@ table.scale td.l.sev-red,table.scale td.l.sev-grey,table.scale td.l.sev-other{-w
 .btn-lim::before,.btn-lim::after{content:none!important}
 .lim-pop-pre{white-space:pre-wrap;font-size:15px;color:var(--pre);margin:0}
 /* Keyboard + Ask buttons: theme colour in dark mode, white in light mode */
-:root[data-mode="light"] #ask.askbtn,:root[data-mode="light"] #cycle.cyclebtn{background:#ffffff}
-.cyclebtn{font-size:14px;font-weight:700;line-height:1;white-space:nowrap;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
-.cyclebtn.is-off{visibility:hidden;pointer-events:none}
+:root[data-mode="light"] #ask.askbtn{background:#ffffff}
 .dc-anchor{display:block;height:0}
+.btn-cycle{flex:none;align-self:center;font-variant-numeric:tabular-nums}
