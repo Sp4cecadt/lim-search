@@ -480,22 +480,44 @@ async function fillDocPreviews(root = view) {
     el.dataset.ready = '1';
   }
 }
-function showInlineDocPreview(row, id) {
+let docPreviewTimer = 0;
+function clearDocPreview() {
+  clearTimeout(docPreviewTimer);
+  docPreviewTimer = 0;
+  view.querySelectorAll('.docprev').forEach(el => el.remove());
+}
+function scheduleDocPreviewDismiss() {
+  clearTimeout(docPreviewTimer);
+  docPreviewTimer = setTimeout(() => {
+    docPreviewTimer = 0;
+    view.querySelectorAll('.docprev').forEach(el => el.remove());
+  }, 2800);
+}
+async function showInlineDocPreview(row, id) {
   if (!row || !id) return;
   view.querySelectorAll('.docprev').forEach(el => {
     if (el.getAttribute('data-doc-prev') !== id) el.remove();
   });
-  if (row.querySelector('[data-doc-prev]')) return;
-  const box = document.createElement('div');
-  box.className = 'docprev';
-  box.setAttribute('data-doc-prev', id);
-  box.innerHTML = '<span class="muted small">Loading preview…</span>';
-  const meta = row.querySelector('.docmeta');
-  (meta || row).appendChild(box);
-  fillDocPreviews(row);
+  if (!row.querySelector('[data-doc-prev]')) {
+    const box = document.createElement('div');
+    box.className = 'docprev';
+    box.setAttribute('data-doc-prev', id);
+    box.innerHTML = '<span class="muted small">Loading preview…</span>';
+    const meta = row.querySelector('.docmeta');
+    (meta || row).appendChild(box);
+    await fillDocPreviews(row);
+  }
+  scheduleDocPreviewDismiss();
 }
+document.addEventListener('click', e => {
+  if (!view.querySelector('.docprev')) return;
+  if (e.target.closest('[data-doc]')) return;
+  if (e.target.closest('[data-doc-del]')) return;
+  clearDocPreview();
+});
 let DOC_SEC = 'work'; // 'work' = how-to-work-object manuals; 'defect' = defect information
 async function renderDocs(msg = '') {
+  clearDocPreview();
   const all = (await store.docAll().catch(() => [])) || [];
   const files = all.filter(f => !f.section || f.section === DOC_SEC);
   files.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'en', { sensitivity: 'base' }));
@@ -519,7 +541,7 @@ async function renderDocs(msg = '') {
       <button type="button" class="chip${DOC_SEC === 'work' ? ' on' : ''}" data-doc-sec="work" role="tab" aria-selected="${DOC_SEC === 'work'}">Work objects</button>
       <button type="button" class="chip${DOC_SEC === 'defect' ? ' on' : ''}" data-doc-sec="defect" role="tab" aria-selected="${DOC_SEC === 'defect'}">Defects</button>
     </div>
-    <p class="muted small">Your own files on this phone (not the Line Inspection Manual). Work objects is for manuals on how to work objects. Defects is for defect-related information. Files you add go into the selected group. Tap a name once for a thumbnail preview; double-tap to open the file. Use the search bar to filter these files.</p>
+    <p class="muted small">Your own files on this phone (not the Line Inspection Manual). Work objects is for manuals on how to work objects. Defects is for defect-related information. Files you add go into the selected group. Tap a name once for a thumbnail preview (it disappears on its own). Double-tap to open the file. Use the search bar to filter these files.</p>
     ${msg ? `<div class="note">${msg}</div>` : ''}
     <label class="btn pri" for="docsfile">📥 Add files</label>
     <input id="docsfile" type="file" multiple accept="application/pdf,.pdf,image/*,.png,.jpg,.jpeg,.webp,.heic,.doc,.docx,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden>
@@ -560,6 +582,7 @@ async function renderDocs(msg = '') {
       const now = Date.now();
       if (lastDocTap.id === id && now - lastDocTap.t < 400) {
         lastDocTap = { id: null, t: 0 };
+        clearDocPreview();
         showUserDoc(id);
         return;
       }
