@@ -1132,6 +1132,33 @@ function fillViewHeight() {
   const tabsH = document.getElementById('tabs')?.offsetHeight || 50;
   view.style.minHeight = Math.max(120, window.innerHeight - headerH - tabsH) + 'px';
 }
+// ---------------- tab-scoped search (non-Search tabs) ----------------
+function curTab() { const h = location.hash || '#/search'; return h.startsWith('#/d/') || h.startsWith('#/page/') ? 'search' : (tabOf(h) || 'search'); }
+function scopedFilter(raw) {
+  const q = (raw || '').trim().toLowerCase();
+  const tab = curTab();
+  const match = el => !q || el.textContent.toLowerCase().includes(q);
+  // reset previous filtering
+  view.querySelectorAll('[data-qhide]').forEach(el => { el.style.display = ''; el.removeAttribute('data-qhide'); });
+  view.querySelectorAll('details[data-qauto]').forEach(d => { d.open = false; d.removeAttribute('data-qauto'); });
+  if (!q) return;
+  const hide = el => { el.style.display = 'none'; el.setAttribute('data-qhide', '1'); };
+  if (tab === 'browse') {
+    const secs = [...view.querySelectorAll(':scope > details.card')];
+    const drilled = secs.filter(d => d.open);
+    const scope = drilled.length ? drilled : secs;
+    for (const d of scope) {
+      let any = false;
+      d.querySelectorAll('a.row').forEach(r => { if (match(r)) any = true; else hide(r); });
+      if (!drilled.length) { if (!any && !match(d.querySelector('summary'))) hide(d); else if (any && !d.open) { d.open = true; d.setAttribute('data-qauto', '1'); } }
+    }
+    if (!drilled.length) [...view.children].forEach(el => { if (!el.matches('details.card') && !el.matches('.chips') && !el.matches('p.muted') && !match(el)) hide(el); });
+    return;
+  }
+  // Cheat / Settings / other tabs: filter only what this tab shows
+  [...view.children].forEach(el => { if (!match(el)) hide(el); });
+}
+let LAST_TAB = null;
 function route() {
   trackHistory();
   const h = location.hash || '#/search';
@@ -1140,9 +1167,12 @@ function route() {
   fillViewHeight();
   // Dismiss search keyboard when leaving Search so iOS doesn't leave the fixed tab bar raised.
   const qEl = $('#q');
+  const isD = h.startsWith('#/d/') || h.startsWith('#/page/');
+  if (qEl && !isD && LAST_TAB !== null && LAST_TAB !== tab && tab !== 'search') { qEl.value = ''; const c = $('#qclear'); if (c) c.hidden = true; }
+  if (!isD) LAST_TAB = tab;
   if (qEl) {
-    if (tab === 'docs') { qEl.placeholder = 'Search docs…'; qEl.setAttribute('aria-label', 'Search docs'); }
-    else { qEl.placeholder = 'Search defects, codes, rules…'; qEl.setAttribute('aria-label', 'Search the manual'); }
+    const ph = { docs: 'Search docs…', browse: 'Search browse…', cheat: 'Search this tab…', manual: 'Search settings…' }[tab] || 'Search defects, codes, rules…';
+    qEl.placeholder = ph; qEl.setAttribute('aria-label', ph.replace('…', ''));
   }
   // Dismiss search keyboard when leaving Search/Docs so iOS doesn't leave the fixed tab bar raised.
   if (tab !== 'search' && tab !== 'docs') { try { qEl.blur(); } catch (_) {} }
@@ -1152,9 +1182,9 @@ function route() {
   if ((m = h.match(/^#\/page\/(\d+)/))) return showPage(+m[1]);
   if ((m = h.match(/^#\/d\/(\w+)/))) { const d = ENG && ENG.byId.get(m[1]); view.innerHTML = d ? `<a class="btn" href="#/search" data-back>‹ Back</a>${defectCard(d, { open: true, terms: lastQ ? lastQ.split(/\s+/) : [] })}` : ''; window.scrollTo(0, 0); hydratePhotos(); wireCardUploads(); return; }
   window.scrollTo(0, 0);
-  if (tab === 'browse') return renderBrowse();
-  if (tab === 'cheat') return renderCheat();
-  if (tab === 'manual') return renderManual();
+  if (tab === 'browse') { renderBrowse(); return scopedFilter(qEl && qEl.value); }
+  if (tab === 'cheat') { renderCheat(); return scopedFilter(qEl && qEl.value); }
+  if (tab === 'manual') { const p = renderManual(); Promise.resolve(p).then(() => scopedFilter(qEl && qEl.value)); return p; }
   if (tab === 'docs') return renderDocs();
   const qm = h.match(/[?&]q=([^&]*)/);
   renderSearch(qm ? decodeURIComponent(qm[1]) : ''); window.scrollTo(0, 0);
@@ -1199,13 +1229,13 @@ view.addEventListener('click', e => {
   const bk = e.target.closest('[data-back]'); if (bk) { e.preventDefault(); if (NAVIDX > 0) history.back(); else location.replace(LAST_SEARCH); return; }
   const ph = e.target.closest('[data-ph]'); if (ph) { e.preventDefault(); showPhoto(ph.dataset.ph); return; }
   const c = e.target.closest('[data-q]'); if (c) { go(c.dataset.q); return; }
-  const b = e.target.closest('[data-bf]'); if (b) { browseFilter = b.dataset.bf; renderBrowse(); }
+  const b = e.target.closest('[data-bf]'); if (b) { browseFilter = b.dataset.bf; renderBrowse(); scopedFilter($('#q').value); }
 });
 let deb;
-$('#q').addEventListener('input', e => { clearTimeout(deb); deb = setTimeout(() => { const q = e.target.value; if (onDocsTab()) { renderDocs(); return; } if (!location.hash.startsWith('#/search')) location.hash = '#/search'; history.replaceState(history.state, '', '#/search?q=' + encodeURIComponent(q)); LAST_SEARCH = location.hash; renderSearch(q); }, 220); });
+$('#q').addEventListener('input', e => { clearTimeout(deb); deb = setTimeout(() => { const q = e.target.value; if (onDocsTab()) { renderDocs(); return; } if (curTab() !== 'search') { scopedFilter(q); return; } if (!location.hash.startsWith('#/search')) location.hash = '#/search'; history.replaceState(history.state, '', '#/search?q=' + encodeURIComponent(q)); LAST_SEARCH = location.hash; renderSearch(q); }, 220); });
 $('#q').addEventListener('input', e => { $('#qclear').hidden = !e.target.value; });
-$('#qclear').addEventListener('click', () => { clearTimeout(deb); const q = $('#q'); q.value = ''; $('#qclear').hidden = true; if (onDocsTab()) { renderDocs(); q.focus(); return; } if (!location.hash.startsWith('#/search')) location.hash = '#/search'; history.replaceState(history.state, '', '#/search?q='); LAST_SEARCH = location.hash; renderSearch(''); q.focus(); });
-$('#qform').addEventListener('submit', e => { e.preventDefault(); if (onDocsTab()) { renderDocs(); return; } $('#q').blur(); go($('#q').value); });
+$('#qclear').addEventListener('click', () => { clearTimeout(deb); const q = $('#q'); q.value = ''; $('#qclear').hidden = true; if (onDocsTab()) { renderDocs(); q.focus(); return; } if (curTab() !== 'search') { scopedFilter(''); q.focus(); return; } if (!location.hash.startsWith('#/search')) location.hash = '#/search'; history.replaceState(history.state, '', '#/search?q='); LAST_SEARCH = location.hash; renderSearch(''); q.focus(); });
+$('#qform').addEventListener('submit', e => { e.preventDefault(); if (onDocsTab()) { renderDocs(); return; } if (curTab() !== 'search') { $('#q').blur(); scopedFilter($('#q').value); return; } $('#q').blur(); go($('#q').value); });
 window.addEventListener('hashchange', route);
 window.addEventListener('resize', () => {
   const h = location.hash || '#/search';
