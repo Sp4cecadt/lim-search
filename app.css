@@ -282,6 +282,7 @@ details:not([open]) > *:not(summary){display:none}
 .defect-card-tools:has(.lim-details-ext[open]){z-index:12}
 /* Matching compact boxes for LIM details + Notes above defect cards */
 .defect-card-tools .lim-details-ext > summary,
+.defect-card-tools .btn-lim,
 .defect-card-tools .btn-notes{
   box-sizing:border-box;
   display:inline-flex;align-items:center;justify-content:center;
@@ -289,6 +290,7 @@ details:not([open]) > *:not(summary){display:none}
   border:1px solid var(--line2);border-radius:10px;white-space:nowrap
 }
 [data-scheme="ios"] .defect-card-tools .lim-details-ext > summary,
+[data-scheme="ios"] .defect-card-tools .btn-lim,
 [data-scheme="ios"] .defect-card-tools .btn-notes{
   border:0;background:var(--fill);color:var(--ink);font-weight:600
 }
@@ -338,3 +340,7 @@ table.scale td.l.sev-red,table.scale td.l.sev-grey,table.scale td.l.sev-other{-w
 
 .card-file-actions{margin-top:12px;padding-top:10px;border-top:1px solid var(--line)}
 .card-file-actions .btn{margin:6px 8px 6px 0}
+
+.btn-lim{flex:none;align-self:center}
+.btn-lim::before,.btn-lim::after{content:none!important}
+.lim-pop-pre{white-space:pre-wrap;font-size:15px;color:var(--pre);margin:0}

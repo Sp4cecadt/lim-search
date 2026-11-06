@@ -251,7 +251,7 @@ async function persistNotesLocal() {
 }
 function refreshNotesPopBody() {
   const el = document.getElementById('notes-pop');
-  if (!el || el.hidden || notesPopId == null) return;
+  if (!el || el.hidden || notesPopId == null || popKind !== 'notes') return;
   const d = ENG && ENG.byId.get(notesPopId);
   const body = el.querySelector('.notes-pop-body');
   if (!d || !body) return;
@@ -295,7 +295,7 @@ function bindNoteHold(root) {
     node.addEventListener('mouseleave', end);
   });
 }
-let notesPopId = null;
+let notesPopId = null, popKind = 'notes';
 function closeNotesPop() {
   const el = document.getElementById('notes-pop');
   if (el) {
@@ -308,7 +308,7 @@ function closeNotesPop() {
     el.style.removeProperty('--notes-max-h');
   }
   document.querySelectorAll('.notes-btn-ph').forEach(ph => ph.remove());
-  document.querySelectorAll('[data-open-notes].on').forEach(b => {
+  document.querySelectorAll('[data-open-notes].on,[data-open-lim].on').forEach(b => {
     b.classList.remove('on');
     b.style.zIndex = '';
     b.style.position = '';
@@ -332,7 +332,7 @@ function cardUnderToolsBtn(btn) {
   while (n && !n.classList.contains('card')) n = n.nextElementSibling;
   return n;
 }
-function openNotesPop(d, btn) {
+function openNotesPop(d, btn, kind = 'notes', limHtml = '') {
   let el = document.getElementById('notes-pop');
   if (!el) {
     el = document.createElement('div');
@@ -376,7 +376,7 @@ function openNotesPop(d, btn) {
       }
     });
   }
-  notesPopId = d.id;
+  notesPopId = d.id; popKind = kind;
   const card = btn ? cardUnderToolsBtn(btn) : null;
   if (btn) {
     const r = btn.getBoundingClientRect();
@@ -415,18 +415,20 @@ function openNotesPop(d, btn) {
     el.style.removeProperty('--notes-max-h');
   }
   el.hidden = false;
-  const barTitle = d.title ? `Notes · ${esc(d.title)}` : 'Notes';
+  const lbl = kind === 'lim' ? 'LIM details' : 'Notes';
+  const barTitle = d.title ? `${lbl} · ${esc(d.title)}` : lbl;
+  const bodyHtml = kind === 'lim' ? `<div class="pre lim-pop-pre">${limHtml}</div>` : notesBody(d);
   el.innerHTML = `<div class="notes-pop-scrim" data-close-notes></div>
-    <div class="notes-pop-panel" role="dialog" aria-modal="true" aria-label="Notes">
+    <div class="notes-pop-panel" role="dialog" aria-modal="true" aria-label="${lbl}">
       <div class="notes-pop-bar"><span class="t">${barTitle}</span><button type="button" class="btn" data-close-notes aria-label="Close">✕</button></div>
-      <div class="notes-pop-body">${notesBody(d)}</div>
+      <div class="notes-pop-body">${bodyHtml}</div>
     </div>`;
-  bindNoteHold(el.querySelector('.notes-pop-body'));
+  if (kind === 'notes') bindNoteHold(el.querySelector('.notes-pop-body'));
 }
-function toggleNotesPop(d, btn) {
-  if (notesPopId === d.id) { closeNotesPop(); return; }
+function toggleNotesPop(d, btn, kind = 'notes', limHtml = '') {
+  if (notesPopId === d.id && popKind === kind) { closeNotesPop(); return; }
   closeNotesPop();
-  openNotesPop(d, btn);
+  openNotesPop(d, btn, kind, limHtml);
 }
 function copyNotesFor(cn) {
   const id = cn.getAttribute('data-copy-notes');
@@ -533,7 +535,7 @@ function renderSearch(q) {
   if (r.defects.length) {
     const defectTools = (d, heading) => {
       const lim = d.details
-        ? `<details class="lim-details-ext"><summary>LIM details</summary><div class="pre">${hl(d.details, terms)}</div></details>`
+        ? `<button type="button" class="btn btn-lim" data-open-lim="${esc(d.id)}" aria-label="LIM details">LIM details</button><template class="lim-tpl">${hl(d.details, terms)}</template>`
         : '';
       const notes = `<button type="button" class="btn btn-notes" data-open-notes="${esc(d.id)}" aria-label="Notes">Notes</button>`;
       return `<div class="defect-card-tools${heading ? ' defect-card-tools-heading' : ''}">${lim}${notes}</div>`;
@@ -1156,6 +1158,14 @@ function route() {
 // ---------------- init ----------------
 view.addEventListener('toggle', e => { if (e.target.open) hydratePhotos(e.target); }, true);
 view.addEventListener('click', e => {
+  const lb = e.target.closest('[data-open-lim]');
+  if (lb) {
+    e.preventDefault(); e.stopPropagation();
+    const d = ENG && ENG.byId.get(lb.getAttribute('data-open-lim'));
+    const tpl = lb.parentNode.querySelector('template.lim-tpl');
+    if (d) toggleNotesPop(d, lb, 'lim', tpl ? tpl.innerHTML : '');
+    return;
+  }
   const on = e.target.closest('[data-open-notes]');
   if (on) {
     e.preventDefault();
