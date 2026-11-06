@@ -768,7 +768,7 @@ document.addEventListener('click', e => {
   if (e.target.closest('[data-doc-del]')) return;
   clearDocPreview();
 });
-let DOC_SEC = 'work'; // 'work' = how-to-work-object manuals; 'defect' = defect information
+let DOC_SEC = 'work'; // 'work' = manuals; 'defect' = inspection info; 'mdms' = MDMS files
 async function renderDocs(msg = '') {
   clearDocPreview();
   const all = (await store.docAll().catch(() => [])) || [];
@@ -776,7 +776,7 @@ async function renderDocs(msg = '') {
   files.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'en', { sensitivity: 'base' }));
   const qfilter = (($('#q') && $('#q').value) || '').trim();
   const shown = qfilter ? files.filter(f => (f.name || '').toLowerCase().includes(qfilter.toLowerCase())) : files;
-  const groupName = DOC_SEC === 'defect' ? 'defect documents' : 'work object manuals';
+  const groupName = DOC_SEC === 'defect' ? 'inspection info' : DOC_SEC === 'mdms' ? 'MDMS files' : 'manuals';
   const rows = !files.length
     ? `<div class="card"><p class="muted">${all.length ? `No ${groupName} in this group yet. Add files while this group is selected.` : 'No docs on this phone yet. Add PDFs, screenshots, or other files — they stay on the device and aren’t uploaded.'}</p></div>`
     : !shown.length
@@ -791,10 +791,11 @@ async function renderDocs(msg = '') {
       }).join('')}</div>`;
   view.innerHTML = `<div class="card"><h3>Docs</h3>
     <div class="chips docsubs" role="tablist" aria-label="Doc groups">
-      <button type="button" class="chip${DOC_SEC === 'work' ? ' on' : ''}" data-doc-sec="work" role="tab" aria-selected="${DOC_SEC === 'work'}">Work objects</button>
-      <button type="button" class="chip${DOC_SEC === 'defect' ? ' on' : ''}" data-doc-sec="defect" role="tab" aria-selected="${DOC_SEC === 'defect'}">Defects</button>
+      <button type="button" class="chip${DOC_SEC === 'work' ? ' on' : ''}" data-doc-sec="work" role="tab" aria-selected="${DOC_SEC === 'work'}">Manuals</button>
+      <button type="button" class="chip${DOC_SEC === 'defect' ? ' on' : ''}" data-doc-sec="defect" role="tab" aria-selected="${DOC_SEC === 'defect'}">Inspection info</button>
+      <button type="button" class="chip${DOC_SEC === 'mdms' ? ' on' : ''}" data-doc-sec="mdms" role="tab" aria-selected="${DOC_SEC === 'mdms'}">MDMS</button>
     </div>
-    <p class="muted small">Your own files on this phone (not the Line Inspection Manual). Work objects is for manuals on how to work objects. Defects is for defect-related information. Files you add go into the selected group. Tap a name once for a thumbnail preview (it disappears on its own). Double-tap to open the file. Use the search bar to filter these files.</p>
+    <p class="muted small">Your own files on this phone (not the Line Inspection Manual). Manuals is for manuals on how to work objects. Inspection info is for defect-related information. MDMS is a separate group for MDMS files. Files you add go into the selected group. Tap a name once for a thumbnail preview (it disappears on its own). Double-tap to open the file. Use the search bar to filter these files.</p>
     ${msg ? `<div class="note">${msg}</div>` : ''}
     <label class="btn pri" for="docsfile">📥 Add files</label>
     <input id="docsfile" type="file" multiple accept="application/pdf,.pdf,image/*,.png,.jpg,.jpeg,.webp,.heic,.doc,.docx,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden>
@@ -817,7 +818,7 @@ async function renderDocs(msg = '') {
   view.querySelectorAll('[data-doc-sec]').forEach(btn => btn.addEventListener('click', e => {
     e.preventDefault(); e.stopPropagation();
     const sec = btn.getAttribute('data-doc-sec');
-    if (sec === 'work' || sec === 'defect') { DOC_SEC = sec; renderDocs(); }
+    if (sec === 'work' || sec === 'defect' || sec === 'mdms') { DOC_SEC = sec; renderDocs(); }
   }));
   view.querySelectorAll('[data-doc-del]').forEach(btn => btn.addEventListener('click', async e => {
     e.preventDefault(); e.stopPropagation();
