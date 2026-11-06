@@ -252,6 +252,31 @@ details:not([open]) > *:not(summary){display:none}
 .row.docrow .docprev-img,.row.docrow .docprev-canvas{display:block;width:100%;height:auto;max-height:220px;object-fit:contain;background:#fff;vertical-align:top}
 .row.docrow .btn.danger{flex:none;align-self:flex-start;margin-top:0}
 
+/* Search Defect cards: Notes + LIM details sit above cards; first pair levels with the secfold label. */
+.defect-cards-block{position:relative}
+.defect-cards-block > details.secfold > summary{padding-right:210px;box-sizing:border-box}
+.defect-cards-block:has(> details.secfold:not([open])) > .defect-card-tools-heading{display:none}
+.defect-card-tools{display:flex;flex-wrap:wrap;justify-content:flex-end;align-items:center;gap:8px;margin:8px 4px 0}
+.defect-card-tools-heading{position:absolute;top:22px;right:4px;z-index:3;margin:0;max-width:min(100%, 280px);align-items:flex-start}
+[data-scheme="ios"] .defect-card-tools-heading{top:24px;right:16px}
+.lim-details-ext{margin:0;border-top:none;padding-top:0;flex:none}
+.lim-details-ext > summary{
+  min-height:auto;padding:8px 12px;font-size:15px;font-weight:600;line-height:1.2;
+  border:1px solid var(--line2);background:var(--surf2);color:var(--fg);border-radius:10px;
+  white-space:nowrap;list-style:none;-webkit-tap-highlight-color:transparent
+}
+.lim-details-ext > summary::-webkit-details-marker{display:none}
+.lim-details-ext > summary::before{content:'▸';margin-right:6px;font-weight:700}
+.lim-details-ext[open] > summary::before{content:'▾'}
+[data-scheme="ios"] .lim-details-ext > summary{border:0;background:var(--fill);color:var(--ink);font-weight:600}
+.lim-details-ext > .pre{
+  margin-top:8px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surf);
+  max-width:min(92vw, 520px);max-height:min(50vh, 360px);overflow:auto;-webkit-overflow-scrolling:touch;
+  white-space:pre-wrap;font-size:15px;color:var(--pre);box-sizing:border-box
+}
+.defect-card-tools-heading .lim-details-ext[open]{flex:1 1 100%;order:3}
+.defect-card-tools-heading .lim-details-ext[open] > .pre{width:100%;max-width:min(92vw, 520px)}
+
 /* Severity cells: background = the manual's own shading for that card (Red = raise a defect, Grey = no defect; manual §1.1.3 p.10) */
 table.scale td.l.sevc{border-left:1px solid var(--line);border-right:1px solid var(--line)}
 table.scale td.l.sev-red,table.scale td.l.sev-grey,table.scale td.l.sev-other{-webkit-print-color-adjust:exact;print-color-adjust:exact}

@@ -155,7 +155,7 @@ function askSkynetText(d) {
     if (bits.length) t += ` Priority: ${bits.join('; ')}.`;
     t += ' What should I check and how should I record it?';
   } else {
-    t = 'Help me with the LIM (Line Inspection Manual): searching defects, priorities (Z Code / Breakdown), and how to record them.';
+    t = 'Help me with the LIM (Line Inspection Manual): searching defects, priorities (Z Code / Breakdown), compare photo/s to Lim photo/s and give opinion based on the LIM and relevent docs uploaded to LIM Search app';
   }
   t = t.replace(/\s+/g, ' ').trim();
   return t.length > 1000 ? t.slice(0, 997) + '…' : t;
@@ -395,7 +395,7 @@ function copyNotesFor(cn) {
     } catch (_) { cn.textContent = 'Couldn’t copy'; }
   })();
 }
-function defectCard(d, { open = false, terms = [] } = {}) {
+function defectCard(d, { open = false, terms = [], showNotes = true, showDetails = true } = {}) {
   const cls = d.zCode ? 'z' : d.breakdown ? 'bd' : '';
   const badges = [];
   if (d.kind !== 'Defect') badges.push(`<span class="b ${d.kind === 'Information Notification' ? 'if' : 'warn'}">${esc(d.kind)}</span>`);
@@ -423,14 +423,14 @@ function defectCard(d, { open = false, terms = [] } = {}) {
   return `<article class="card defect ${cls}">
     <div class="card-head">
       <h3><a href="#/d/${d.id}" style="color:inherit;text-decoration:none">${hl(d.title, terms)}</a></h3>
-      <button type="button" class="btn btn-notes" data-open-notes="${esc(d.id)}" aria-label="Notes">Notes</button>
+      ${showNotes ? `<button type="button" class="btn btn-notes" data-open-notes="${esc(d.id)}" aria-label="Notes">Notes</button>` : ''}
     </div>
     <div class="sec">§${esc(d.num || d.section)} ${esc(d.sectionTitle)} · ${pageLink(d.page, d.pageLabel)}</div>
     <div class="badges">${badges.join('')}</div>
     ${warn.map(w => `<div class="note">⚠️ ${esc(w)}</div>`).join('')}
     <dl class="kv">${kv.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl>
     ${scale}
-    ${d.details ? `<details ${open ? 'open' : ''}><summary>Details from the manual</summary><div class="pre">${hl(d.details, terms)}</div></details>` : ''}
+    ${showDetails && d.details ? `<details ${open ? 'open' : ''}><summary>Details from the manual</summary><div class="pre">${hl(d.details, terms)}</div></details>` : ''}
     ${ex.length ? `<details class="phx" ${open ? 'open' : ''}><summary>${nPh ? '📷 ' : ''}Photo examples (${ex.length})</summary>${!PHOTOS.size ? `<div class="note small">The example photos aren’t on this phone yet. <a href="#/manual">Manual tab › Add photos</a></div>` : ''}${ex.map(e => `<div class="ex">${PHOTOS.has(e.key) ? `<button class="phb" data-ph="${e.key}" aria-label="Enlarge photo"><img data-phk="${e.key}" alt="Example photo from p.${e.p}"><span class="zoomi">⤢</span></button>` : ''}${hl(e.caption, terms)}<div>${e.tags.map(t => `<span class="tag ${t.k === 'Priority' && /z/i.test(t.v) ? 'zt' : ''}">${t.bfra ? esc(t.bfra) + ' ' : ''}${esc(t.k)}: ${esc(t.v)}</span>`).join('')} ${pageLink(e.p)}</div></div>`).join('')}</details>` : ''}
     ${d.summary ? `<details><summary>Section 5 summary table row</summary><div class="small muted">As printed in the condition summary table, ${pageLink(d.summary.p)}. Columns may run together.</div><dl class="kv"><dt>Quick code</dt><dd>${esc(d.summary.quickCode)}</dd><dt>Severity</dt><dd>${esc(d.summary.severity)}</dd></dl><div class="pre small">${hl(d.summary.details, terms)}</div></details>` : ''}
     ${d.kind === 'Summary table only' ? `<div class="note">There's no separate condition example page for this one. It's taken from the Section 5 summary table, ${pageLink(d.page)}, so check the page.</div>` : ''}
@@ -485,9 +485,23 @@ function renderSearch(q) {
   if (r.intents.breakdown) h += bdPanel();
   if (r.passages.length) h += secfold('From the recording rules', r.passages.map(p => `<div class="card"><b>${esc(p.title)}</b> · ${pageLink(p.page)}<div class="pre small" style="margin-top:6px">${hl(p.text, terms)}</div></div>`).join(''));
   if (r.defects.length) {
-    let body = r.defects.slice(0, 2).map((x, i) => defectCard(x.d, { terms, open: false })).join('');
+    const defectTools = (d, heading) => {
+      const lim = d.details
+        ? `<details class="lim-details-ext"><summary>LIM details</summary><div class="pre">${hl(d.details, terms)}</div></details>`
+        : '';
+      const notes = `<button type="button" class="btn btn-notes" data-open-notes="${esc(d.id)}" aria-label="Notes">Notes</button>`;
+      return `<div class="defect-card-tools${heading ? ' defect-card-tools-heading' : ''}">${lim}${notes}</div>`;
+    };
+    const top = r.defects.slice(0, 2);
+    let body = '';
+    top.forEach((x, i) => {
+      // First card's tools sit on the Defect cards heading row (outside body via wrapper).
+      if (i > 0) body += defectTools(x.d, false);
+      body += defectCard(x.d, { terms, open: false, showNotes: false, showDetails: false });
+    });
     if (r.defects.length > 2) body += `<div class="card">${r.defects.slice(2).map(x => `<a class="row" href="#/d/${x.d.id}"><span>${hl(x.d.title, terms)}<br><small>§${esc(x.d.section)} ${esc(x.d.sectionTitle)} · p.${x.d.page}</small></span><span>${x.d.zCode ? '<span class="b z">Z</span>' : ''}${x.d.breakdown ? ' <span class="b bd">BD</span>' : ''} ›</span></a>`).join('')}</div>`;
-    h += secfold(`Defect cards ${r.mode === 'any' ? '<small>(partial match)</small>' : ''}`, body, true);
+    const headingTools = defectTools(top[0].d, true);
+    h += `<div class="defect-cards-block">${headingTools}${secfold(`Defect cards ${r.mode === 'any' ? '<small>(partial match)</small>' : ''}`, body, true)}</div>`;
   }
   if (r.quickCodes.length) h += secfold('Quick codes (§14.2)', `<div class="card">${r.quickCodes.map(c => `<div class="row"><span><span class="qc">${esc(c.group ? c.group + ' > ' : '')}${hl(c.name, terms)}</span><br><small>${hl(c.desc, terms)}</small></span><span><span class="b">${esc(c.type)}</span> ${pageLink(c.p)}</span></div>`).join('')}</div>`);
   if (r.chunks.length) {
