@@ -344,5 +344,5 @@ table.scale td.l.sev-red,table.scale td.l.sev-grey,table.scale td.l.sev-other{-w
 .btn-lim{flex:none;align-self:center}
 .btn-lim::before,.btn-lim::after{content:none!important}
 .lim-pop-pre{white-space:pre-wrap;font-size:15px;color:var(--pre);margin:0}
-/* Ask button locked to teal in every scheme/mode */
-#ask.askbtn,[data-scheme] #ask.askbtn,:root[data-mode] #ask.askbtn,#mic.mic:not(.on),[data-scheme] #mic.mic:not(.on),:root[data-mode] #mic.mic:not(.on){background:#123a37}
+/* Keyboard + Ask buttons: theme colour in dark mode, white in light mode */
+:root[data-mode="light"] #mic.mic:not(.on),:root[data-mode="light"] #ask.askbtn{background:#ffffff}
