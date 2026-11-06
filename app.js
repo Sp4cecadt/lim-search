@@ -1,16 +1,18 @@
 import * as store from './js/store.js';
 import { buildIndex, search, hasWord } from './js/search.js';
 import { initSwipe } from './js/swipe.js';
+import { parseNotesFile, notesForDefect as matchNotes } from './js/notes.js';
 
 const $ = s => document.querySelector(s);
 const view = $('#view');
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-let DATA = null, ENG = null, META = null, HAS_PDF = false;
+let DATA = null, ENG = null, META = null, HAS_PDF = false, NOTES = null;
 let PHOTOS = new Set(), PHMETA = null; // example photo keys "<defectId>/<exampleIndex>" stored on this phone
 const phURL = new Map();
 
 // ---------------- data loading ----------------
 async function loadData() {
+  try { NOTES = await store.get('defectNotes'); } catch (e) { NOTES = null; }
   try {
     const d = await store.get('manual');
     if (d) { setData(d, await store.get('meta')); HAS_PDF = !!(await store.get('pdfInfo')); await loadPhotoKeys(); return; }
@@ -172,6 +174,22 @@ function openAskSkynet(d) {
   setTimeout(goHttps, STANDALONE || IS_IOS ? 900 : 200);
 }
 
+function notesSection(d, open = false) {
+  let inner;
+  if (!NOTES || !NOTES.sections || !NOTES.sections.length) {
+    inner = `<p class="muted small">No notes file on this phone yet. Open Settings and upload the notes export you use when raising a defect. Information from the Line Inspection Manual on this card stays as it is.</p>`;
+  } else {
+    const items = matchNotes(NOTES, d);
+    if (!items.length) {
+      const where = d.section ? ` (§${esc(d.section)}${d.sectionTitle ? ' ' + esc(d.sectionTitle) : ''})` : '';
+      inner = `<p class="muted small">No notes in “${esc(NOTES.fileName || 'your file')}” matched this card${where}. Headings in the file should use the manual’s section numbers, for example “6.2 Standard Poles”.</p>`;
+    } else {
+      inner = items.map(it => `<div class="ex">${it.heading ? `<b>${esc(it.heading)}</b>` : ''}<div class="pre small">${esc(it.text)}</div></div>`).join('')
+        + `<button type="button" class="btn" data-copy-notes="${esc(d.id)}">Copy notes</button>`;
+    }
+  }
+  return `<details ${open ? 'open' : ''}><summary>Notes</summary>${inner}</details>`;
+}
 function defectCard(d, { open = false, terms = [] } = {}) {
   const cls = d.zCode ? 'z' : d.breakdown ? 'bd' : '';
   const badges = [];
@@ -197,7 +215,6 @@ function defectCard(d, { open = false, terms = [] } = {}) {
   if (d.inBreakdownIndex) refs.push(`App. 3 Breakdown index ${pageLink(d.inBreakdownIndex)}`);
   const ex = d.examples.map((e, i) => ({ ...e, key: d.id + '/' + i })).filter(e => e.caption || e.tags.length);
   const nPh = ex.filter(e => PHOTOS.has(e.key)).length;
-  const rec = ['priorityfield', 'deadlines', 'notes', 'photos'].map(passage).filter(Boolean);
   return `<article class="card defect ${cls}">
     <h3><a href="#/d/${d.id}" style="color:inherit;text-decoration:none">${hl(d.title, terms)}</a></h3>
     <div class="sec">§${esc(d.num || d.section)} ${esc(d.sectionTitle)} · ${pageLink(d.page, d.pageLabel)}</div>
@@ -209,7 +226,7 @@ function defectCard(d, { open = false, terms = [] } = {}) {
     ${ex.length ? `<details class="phx" ${open ? 'open' : ''}><summary>${nPh ? '📷 ' : ''}Photo examples (${ex.length})</summary>${!PHOTOS.size ? `<div class="note small">The example photos aren’t on this phone yet. <a href="#/manual">Manual tab › Add photos</a></div>` : ''}${ex.map(e => `<div class="ex">${PHOTOS.has(e.key) ? `<button class="phb" data-ph="${e.key}" aria-label="Enlarge photo"><img data-phk="${e.key}" alt="Example photo from p.${e.p}"><span class="zoomi">⤢</span></button>` : ''}${hl(e.caption, terms)}<div>${e.tags.map(t => `<span class="tag ${t.k === 'Priority' && /z/i.test(t.v) ? 'zt' : ''}">${t.bfra ? esc(t.bfra) + ' ' : ''}${esc(t.k)}: ${esc(t.v)}</span>`).join('')} ${pageLink(e.p)}</div></div>`).join('')}</details>` : ''}
     ${d.summary ? `<details><summary>Section 5 summary table row</summary><div class="small muted">As printed in the condition summary table, ${pageLink(d.summary.p)}. Columns may run together.</div><dl class="kv"><dt>Quick code</dt><dd>${esc(d.summary.quickCode)}</dd><dt>Severity</dt><dd>${esc(d.summary.severity)}</dd></dl><div class="pre small">${hl(d.summary.details, terms)}</div></details>` : ''}
     ${d.kind === 'Summary table only' ? `<div class="note">There's no separate condition example page for this one. It's taken from the Section 5 summary table, ${pageLink(d.page)}, so check the page.</div>` : ''}
-    ${rec.length ? `<details><summary>How to record it</summary>${rec.map(p => `<div class="ex"><b>${esc(p.title)}</b> ${pageLink(p.page)}<div class="pre small">${esc(p.text)}</div></div>`).join('')}</details>` : ''}
+    ${notesSection(d, open)}
     <div class="small muted" style="margin-top:8px">${refs.join(' · ')}</div>
   </article>`;
 }
@@ -360,12 +377,47 @@ async function renderManual(msg = '') {
     <p class="muted small">Processing happens on the phone. The PDF isn’t uploaded anywhere. Reading the text of a 1,400-page manual takes about a minute, then the example photos are cut out of the PDF (a few more minutes; search works meanwhile). Keep the app open while it runs. A new version replaces the old text and photos.</p>
     ${photoStatus()}
     <div id="prog"></div></div>
+    <div class="card"><h3>Defect notes</h3>
+      ${NOTES ? `<dl class="kv"><dt>File</dt><dd>${esc(NOTES.fileName || '')}</dd>
+        <dt>Loaded</dt><dd>${NOTES.loadedAt ? new Date(NOTES.loadedAt).toLocaleString('en-AU') : '?'}</dd>
+        <dt>Groups found</dt><dd>${(NOTES.sections || []).length}</dd></dl>` : '<p>No notes file loaded yet.</p>'}
+      <label class="btn pri" for="notesfile">📥 ${NOTES ? 'Replace notes file' : 'Upload notes file'}</label>
+      <input id="notesfile" type="file" accept=".txt,.md,.markdown,.text,.rtf,.html,.htm,.pdf,.docx,text/plain,text/markdown,text/html,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden>
+      <p class="muted small">Upload the Windows Notes export you cut and paste when raising a defect. The text should be grouped under headings for each manual section (for example “6.2 Standard Poles”). It stays on this phone and isn’t sent anywhere. Matching notes then appear in the Notes section on each defect card, alongside the Line Inspection Manual information.</p>
+      ${NOTES ? '<button class="btn danger" type="button" id="wipenotes">Remove notes file</button>' : ''}
+    </div>
     ${appearanceCard()}
     <div class="card"><h3>Storage</h3><p class="small muted">${est ? `Using ${(est.usage / 1e6).toFixed(1)} MB of ${(est.quota / 1e6).toFixed(0)} MB available.` : ''}</p>
     <button class="btn danger" id="wipe">Delete manual from this phone</button></div>
     <p class="muted small">Extractor v${esc(m ? m.extractorVersion : '')}. Defect cards are built automatically from the manual's layout. Always check the page reference before relying on a code or priority.</p>`;
   wireAppearance();
   $('#pdffile').addEventListener('change', e => e.target.files[0] && doUpdate(e.target.files[0]));
+  const nf = $('#notesfile');
+  if (nf) nf.addEventListener('change', async e => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (!file) return;
+    try {
+      const parsed = await parseNotesFile(file);
+      await store.persist();
+      await store.set('defectNotes', parsed);
+      NOTES = parsed;
+      const n = (parsed.sections || []).length;
+      renderManual(n
+        ? `✅ Loaded ${n} note group${n === 1 ? '' : 's'} from ${parsed.fileName}. Open a defect card from Search to see them in Notes.`
+        : `Loaded ${parsed.fileName}, but no section headings were found. Use headings like “6.2 Standard Poles” so notes can match cards.`);
+    } catch (err) {
+      console.warn('notes import', err);
+      renderManual('Couldn’t read that notes file. Try saving it from the Windows Notes app as a .txt or .md file.');
+    }
+  });
+  const wn = $('#wipenotes');
+  if (wn) wn.addEventListener('click', async () => {
+    if (!confirm('Remove the notes file from this phone? Defect cards will keep their Line Inspection Manual information.')) return;
+    await store.del('defectNotes');
+    NOTES = null;
+    renderManual('Notes file removed.');
+  });
   const ap = $('#addph'); if (ap) ap.addEventListener('click', addPhotosFromStored);
   $('#wipe').addEventListener('click', async () => { if (!confirm('Delete the stored manual, photos and PDF from this phone?')) return; PHOTO_RUN = null; await store.del('manual'); await store.del('meta'); await store.del('pdf'); await store.del('pdfInfo'); await store.del('photoMeta'); await store.photoClear(); PHOTOS = new Set(); PHMETA = null; resetPhotoURLs(); HAS_PDF = false; setData(null, null); renderManual('Deleted.'); });
 }
@@ -806,6 +858,22 @@ function route() {
 // ---------------- init ----------------
 view.addEventListener('toggle', e => { if (e.target.open) hydratePhotos(e.target); }, true);
 view.addEventListener('click', e => {
+  const cn = e.target.closest('[data-copy-notes]');
+  if (cn) {
+    e.preventDefault();
+    const id = cn.getAttribute('data-copy-notes');
+    const d = ENG && ENG.byId.get(id);
+    const items = (d && NOTES) ? matchNotes(NOTES, d) : [];
+    const text = items.map(it => [it.heading, it.text].filter(Boolean).join('\n')).join('\n\n');
+    (async () => {
+      try {
+        await navigator.clipboard.writeText(text);
+        cn.textContent = 'Copied';
+        setTimeout(() => { cn.textContent = 'Copy notes'; }, 1600);
+      } catch (_) { cn.textContent = 'Couldn’t copy'; }
+    })();
+    return;
+  }
   const bk = e.target.closest('[data-back]'); if (bk) { e.preventDefault(); if (NAVIDX > 0) history.back(); else location.replace(LAST_SEARCH); return; }
   const ph = e.target.closest('[data-ph]'); if (ph) { e.preventDefault(); showPhoto(ph.dataset.ph); return; }
   const c = e.target.closest('[data-q]'); if (c) { go(c.dataset.q); return; }
