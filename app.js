@@ -655,7 +655,7 @@ async function renderManual(msg = '') {
     ${msg ? `<div class="note">${msg}</div>` : ''}
     <label class="btn pri" for="pdffile">📥 ${m ? 'Update manual (pick new PDF)' : 'Load manual PDF'}</label>
     <input id="pdffile" type="file" accept="application/pdf,.pdf" hidden>
-    <p class="muted small">Processing happens on the phone. The PDF isn’t uploaded anywhere. Reading the text of a 1,400-page manual takes about a minute, then the example photos are cut out of the PDF (a few more minutes; search works meanwhile). Keep the app open while it runs. A new version replaces the old text and photos.</p>
+    
     ${photoStatus()}
     <div id="prog"></div></div>
     <div class="card"><h3>Defect notes</h3>
@@ -670,7 +670,7 @@ async function renderManual(msg = '') {
     ${appearanceCard()}
     <div class="card"><h3>Storage</h3><p class="small muted">${est ? `Using ${(est.usage / 1e6).toFixed(1)} MB of ${(est.quota / 1e6).toFixed(0)} MB available.` : ''}</p>
     <button class="btn danger" id="wipe">Delete manual from this phone</button></div>
-    <p class="muted small">Extractor v${esc(m ? m.extractorVersion : '')}. Defect cards are built automatically from the manual's layout. Always check the page reference before relying on a code or priority.</p>`;
+    `;
   wireAppearance();
   $('#pdffile').addEventListener('change', e => e.target.files[0] && doUpdate(e.target.files[0]));
   const nf = $('#notesfile');
