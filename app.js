@@ -862,7 +862,7 @@ async function renderDocs(msg = '') {
           <button type="button" class="btn danger" data-doc-del="${esc(f.id)}" aria-label="Delete ${esc(f.name)}">Delete</button>
         </div>`;
       }).join('')}</div>`;
-  view.innerHTML = `<div class="card"><h3>Docs</h3>
+  view.innerHTML = `<div class="card"><div class="docs-heading-row"><h3>Docs</h3><label class="btn pri" for="docsfile">📥 Add files</label></div>
     <div class="chips docsubs" role="tablist" aria-label="Doc groups">
       <button type="button" class="chip${DOC_SEC === 'work' ? ' on' : ''}" data-doc-sec="work" role="tab" aria-selected="${DOC_SEC === 'work'}">Manuals</button>
       <button type="button" class="chip${DOC_SEC === 'defect' ? ' on' : ''}" data-doc-sec="defect" role="tab" aria-selected="${DOC_SEC === 'defect'}">Inspection info</button>
@@ -870,7 +870,6 @@ async function renderDocs(msg = '') {
     </div>
     
     ${msg ? `<div class="note">${msg}</div>` : ''}
-    <label class="btn pri" for="docsfile">📥 Add files</label>
     <input id="docsfile" type="file" multiple accept="application/pdf,.pdf,image/*,.png,.jpg,.jpeg,.webp,.heic,.doc,.docx,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden>
   </div>${rows}`;
   $('#docsfile').addEventListener('change', async e => {

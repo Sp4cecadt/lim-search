@@ -353,3 +353,7 @@ table.scale td.l.sev-red,table.scale td.l.sev-grey,table.scale td.l.sev-other{-w
 .defect-cards-toggle{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .defect-card-tools .btn-lim,.defect-card-tools .btn-notes,.defect-card-tools .btn-cycle{flex:0 0 auto}
 #ask{flex:none;margin:0}
+.docs-heading-row{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;box-sizing:border-box}
+.docs-heading-row h3{margin:0;min-width:0}
+.docs-heading-row label.btn{flex:none;margin-left:auto;white-space:nowrap}
+.chips.docsubs{margin-top:14px}
