@@ -1059,16 +1059,34 @@ function setupMic() {
   const KBTIP = `<b>Speak using the keyboard:</b> tap the <b>🎤</b> at the bottom right of the iPhone keyboard, say what you’re looking for, then tap it again. Results update as you talk.<br><small>No 🎤 on the keyboard? Turn on Settings › General › Keyboard › Enable Dictation.</small>`;
   let broken = sessionStorage.getItem('srBroken') === '1';
   const keyboardMode = () => !SR || broken || (IS_IOS && STANDALONE);
-  // must run synchronously inside the tap, or iOS won't open the keyboard
-  const kbDictate = (lead = '') => { q.focus(); try { q.setSelectionRange(q.value.length, q.value.length); } catch (e) {} tip(lead + KBTIP, 15000); };
-  // UI is a keyboard control (matches what iPhone Home Screen does); SR may still run elsewhere under the hood.
-  btn.setAttribute('aria-label', 'Open keyboard for dictation');
-  btn.title = 'Keyboard';
+  // Toggle: focus #q to show keyboard, blur to hide. Must run sync inside the tap on iOS.
+  const kbUp = () => document.activeElement === q;
+  const syncMicLabel = () => {
+    if (kbUp()) { btn.setAttribute('aria-label', 'Hide keyboard'); btn.title = 'Hide keyboard'; }
+    else { btn.setAttribute('aria-label', 'Show keyboard'); btn.title = 'Show keyboard'; }
+  };
+  const kbDictate = (lead = '', forceShow = false) => {
+    if (!forceShow && kbUp()) {
+      q.blur();
+      msg.hidden = true;
+      syncMicLabel();
+      return;
+    }
+    q.focus();
+    try { q.setSelectionRange(q.value.length, q.value.length); } catch (e) {}
+    tip((lead || '') + KBTIP, 15000);
+    syncMicLabel();
+  };
+  // UI is a keyboard toggle (matches what iPhone Home Screen does); SR may still run elsewhere under the hood.
+  syncMicLabel();
   // Always show keyboard glyph: on iPhone Home Screen that's what the control does; elsewhere it still falls back to the keyboard tip.
   btn.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="6.5" width="19" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M6 13h.01M10 13h.01M14 13h.01M18 13h.01M8 16h8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>`;
-  q.addEventListener('blur', () => setTimeout(() => { if (!on) msg.hidden = true; }, 300));
+  q.addEventListener('focus', syncMicLabel);
+  q.addEventListener('blur', () => setTimeout(() => { if (!on) msg.hidden = true; syncMicLabel(); }, 300));
   let rec = null, on = false, wd = null, gotResult = false;
-  const fail = (why, remember) => { clearTimeout(wd); on = false; btn.classList.remove('on'); try { rec && rec.abort(); } catch (e) {} if (remember) { broken = true; sessionStorage.setItem('srBroken', '1'); } kbDictate(why); };
+  const fail = (why, remember) => { clearTimeout(wd); on = false; btn.classList.remove('on'); try { rec && rec.abort(); } catch (e) {} if (remember) { broken = true; sessionStorage.setItem('srBroken', '1'); } kbDictate(why, true); };
+  // Don't let the button steal focus (would blur #q before click and fight the toggle).
+  btn.addEventListener('pointerdown', e => { if (e.pointerType === 'mouse' && e.button !== 0) return; e.preventDefault(); });
   btn.addEventListener('click', () => {
     if (keyboardMode()) return kbDictate();
     if (on) { try { rec.stop(); } catch (e) {} return; }
