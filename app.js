@@ -1320,14 +1320,62 @@ async function upgradeStoredManual() {
 window.__lim = { get navIdx() { return NAVIDX; }, swipe: SWIPE, askSkynetText, askSkynetLinks, currentDefect, openAskSkynet, get data() { return DATA; }, get photos() { return PHOTOS; }, get photoMeta() { return PHMETA; }, get photoRun() { return !!PHOTO_RUN; } };
 
 // ---------------- defect card cycler (Defect cards heading row) ----------------
+// Resting place: heading tools row, right of Notes. While in use it pins (position:fixed) where it is so it
+// never slides away under the finger; unpins after 5s with no screen interaction; any scroll re-shows it.
 (() => {
-  let idx = 0;
-  new MutationObserver(() => { idx = 0; }).observe(view, { childList: true });
+  let idx = 0, pinned = false, ph = null, timer = null, lastRect = null, selfScroll = false;
+  const IDLE = 5000;
+  const btnEl = () => document.getElementById('cycle');
+  const count = () => view.querySelectorAll('[data-dc]').length;
+  const unpin = () => {
+    clearTimeout(timer); timer = null;
+    const b = btnEl();
+    if (b) { b.classList.remove('is-pinned'); ['position', 'top', 'left', 'width', 'height', 'zIndex', 'margin'].forEach(k => { b.style[k] = ''; }); }
+    if (ph && ph.parentNode) ph.remove();
+    ph = null; pinned = false;
+  };
+  const arm = () => { clearTimeout(timer); timer = setTimeout(unpin, IDLE); };
+  const pin = rect => {
+    const b = btnEl(); if (!b || count() < 2) return;
+    if (!pinned) {
+      const r = b.getBoundingClientRect();
+      rect = rect || { left: r.left, top: r.top, width: r.width, height: r.height };
+      ph = document.createElement('span');
+      ph.className = 'notes-btn-ph'; ph.setAttribute('aria-hidden', 'true');
+      ph.style.width = r.width + 'px'; ph.style.height = r.height + 'px';
+      b.parentNode.insertBefore(ph, b);
+      b.classList.add('is-pinned');
+      b.style.position = 'fixed'; b.style.margin = '0'; b.style.zIndex = '4';
+      b.style.left = rect.left + 'px'; b.style.top = rect.top + 'px';
+      b.style.width = rect.width + 'px'; b.style.height = rect.height + 'px';
+      lastRect = rect; pinned = true;
+    }
+    arm();
+  };
+  const inView = el => { const r = el.getBoundingClientRect(); const hb = (document.getElementById('top') || { getBoundingClientRect: () => ({ bottom: 0 }) }).getBoundingClientRect().bottom; return r.bottom > hb && r.top < window.innerHeight; };
+  // Fallback pin spot (never tapped yet): just under the sticky header, right edge of the content.
+  const defaultRect = b => {
+    const r = b.getBoundingClientRect();
+    const hdr = document.getElementById('top'); const hb = hdr ? hdr.getBoundingClientRect().bottom : 0;
+    const vw = (window.visualViewport && window.visualViewport.width) || window.innerWidth;
+    return { left: Math.max(8, vw - r.width - 16), top: hb + 8, width: r.width, height: r.height };
+  };
+  new MutationObserver(() => { idx = 0; lastRect = null; unpin(); }).observe(view, { childList: true });
+  // Any screen interaction keeps it alive while pinned.
+  ['pointerdown', 'touchstart', 'click'].forEach(ev => document.addEventListener(ev, () => { if (pinned) arm(); }, { passive: true, capture: true }));
+  // Scrolling (either direction) re-shows it if it has gone off screen, and resets the idle timer.
+  window.addEventListener('scroll', () => {
+    const b = btnEl(); if (!b || count() < 2) return;
+    if (pinned) { arm(); return; }
+    if (selfScroll) return;
+    if (!inView(b)) pin(lastRect || defaultRect(b));
+  }, { passive: true });
   view.addEventListener('click', e => {
     const btn = e.target.closest('#cycle');
     if (!btn) return;
     e.preventDefault();
     const ts = [...view.querySelectorAll('[data-dc]')]; const n = ts.length; if (n < 2) return;
+    pin(); // pin BEFORE scrolling so the button never travels up under the finger
     idx = (idx + 1) % n;
     const hdr = document.getElementById('top');
     const off = (hdr ? hdr.getBoundingClientRect().bottom : 0) + 8;

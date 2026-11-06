@@ -357,3 +357,4 @@ table.scale td.l.sev-red,table.scale td.l.sev-grey,table.scale td.l.sev-other{-w
 .docs-heading-row h3{margin:0;min-width:0}
 .docs-heading-row label.btn{flex:none;margin-left:auto;white-space:nowrap}
 .chips.docsubs{margin-top:14px}
+.btn-cycle.is-pinned{box-shadow:0 4px 14px rgba(0,0,0,.25)}
