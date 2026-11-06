@@ -544,10 +544,11 @@ function renderSearch(q) {
     let body = '';
     top.forEach((x, i) => {
       // First card's tools sit on the Defect cards heading row (outside body via wrapper).
+      body += `<span class="dc-anchor" data-dc="${i}"></span>`;
       if (i > 0) body += defectTools(x.d, false);
       body += defectCard(x.d, { terms, open: false, showNotes: false, showDetails: false });
     });
-    if (r.defects.length > 2) body += `<div class="card">${r.defects.slice(2).map(x => `<a class="row" href="#/d/${x.d.id}"><span>${hl(x.d.title, terms)}<br><small>§${esc(x.d.section)} ${esc(x.d.sectionTitle)} · p.${x.d.page}</small></span><span>${x.d.zCode ? '<span class="b z">Z</span>' : ''}${x.d.breakdown ? ' <span class="b bd">BD</span>' : ''} ›</span></a>`).join('')}</div>`;
+    if (r.defects.length > 2) body += `<div class="card">${r.defects.slice(2).map((x, k) => `<a class="row" data-dc="${k + 2}" href="#/d/${x.d.id}"><span>${hl(x.d.title, terms)}<br><small>§${esc(x.d.section)} ${esc(x.d.sectionTitle)} · p.${x.d.page}</small></span><span>${x.d.zCode ? '<span class="b z">Z</span>' : ''}${x.d.breakdown ? ' <span class="b bd">BD</span>' : ''} ›</span></a>`).join('')}</div>`;
     const headingTools = defectTools(top[0].d, true);
     const defectTitle = `Defect cards ${r.mode === 'any' ? '<small>(partial match)</small>' : ''}`;
     // In-flow heading row: title + tools share one flex row; LIM details overlay sits on the card (see CSS).
@@ -1286,3 +1287,33 @@ async function upgradeStoredManual() {
   finally { UPGRADING = false; }
 }
 window.__lim = { get navIdx() { return NAVIDX; }, swipe: SWIPE, askSkynetText, askSkynetLinks, currentDefect, openAskSkynet, get data() { return DATA; }, get photos() { return PHOTOS; }, get photoMeta() { return PHMETA; }, get photoRun() { return !!PHOTO_RUN; } };
+
+// ---------------- defect card cycler (header far-right) ----------------
+(() => {
+  const btn = document.getElementById('cycle');
+  if (!btn) return;
+  let idx = 0;
+  const targets = () => [...view.querySelectorAll('[data-dc]')];
+  const label = n => {
+    btn.textContent = `${idx + 1} / ${n}`;
+    btn.setAttribute('aria-label', `Next defect card, ${idx + 1} of ${n}`);
+    btn.title = `Defect card ${idx + 1} of ${n}`;
+  };
+  const update = () => {
+    const n = targets().length;
+    idx = 0;
+    if (n > 1) { btn.classList.remove('is-off'); btn.removeAttribute('aria-hidden'); btn.tabIndex = 0; label(n); }
+    else { btn.classList.add('is-off'); btn.setAttribute('aria-hidden', 'true'); btn.tabIndex = -1; btn.textContent = ''; }
+  };
+  new MutationObserver(update).observe(view, { childList: true });
+  btn.addEventListener('click', () => {
+    const ts = targets(); const n = ts.length; if (n < 2) return;
+    idx = (idx + 1) % n;
+    const el = ts[idx];
+    const hdr = document.getElementById('top');
+    const off = (hdr ? hdr.getBoundingClientRect().bottom : 0) + 8;
+    window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - off, behavior: 'smooth' });
+    label(n);
+  });
+  update();
+})();

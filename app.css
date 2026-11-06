@@ -345,4 +345,7 @@ table.scale td.l.sev-red,table.scale td.l.sev-grey,table.scale td.l.sev-other{-w
 .btn-lim::before,.btn-lim::after{content:none!important}
 .lim-pop-pre{white-space:pre-wrap;font-size:15px;color:var(--pre);margin:0}
 /* Keyboard + Ask buttons: theme colour in dark mode, white in light mode */
-:root[data-mode="light"] #ask.askbtn{background:#ffffff}
+:root[data-mode="light"] #ask.askbtn,:root[data-mode="light"] #cycle.cyclebtn{background:#ffffff}
+.cyclebtn{font-size:14px;font-weight:700;line-height:1;white-space:nowrap;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.cyclebtn.is-off{visibility:hidden;pointer-events:none}
+.dc-anchor{display:block;height:0}
