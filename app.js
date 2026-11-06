@@ -482,10 +482,15 @@ async function fillDocPreviews(root = view) {
 }
 async function renderDocs(msg = '') {
   const files = (await store.docAll().catch(() => [])) || [];
-  files.sort((a, b) => (b.addedAt || 0) - (a.addedAt || 0));
+  files.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'en', { sensitivity: 'base' }));
   const fmt = n => n >= 1e6 ? (n / 1e6).toFixed(1) + ' MB' : n >= 1e3 ? (n / 1e3).toFixed(0) + ' KB' : n + ' B';
-  const rows = files.length
-    ? `<div class="card">${files.map(f => {
+  const qfilter = (($('#q') && $('#q').value) || '').trim();
+  const shown = qfilter ? files.filter(f => (f.name || '').toLowerCase().includes(qfilter.toLowerCase())) : files;
+  const rows = !files.length
+    ? `<div class="card"><p class="muted">No docs on this phone yet. Add PDFs, screenshots, or other files — they stay on the device and aren’t uploaded.</p></div>`
+    : !shown.length
+    ? `<div class="card"><p class="muted">No docs match “${esc(qfilter)}”.</p></div>`
+    : `<div class="card">${shown.map(f => {
         const canPrev = docIsPdf(f) || docIsImage(f);
         return `<div class="row docrow" role="button" tabindex="0" data-doc="${esc(f.id)}">
           <div class="docmeta">
@@ -495,10 +500,9 @@ async function renderDocs(msg = '') {
           </div>
           <button type="button" class="btn danger" data-doc-del="${esc(f.id)}" aria-label="Delete ${esc(f.name)}">Delete</button>
         </div>`;
-      }).join('')}</div>`
-    : `<div class="card"><p class="muted">No docs on this phone yet. Add PDFs, screenshots, or other files — they stay on the device and aren’t uploaded.</p></div>`;
+      }).join('')}</div>`;
   view.innerHTML = `<div class="card"><h3>Docs</h3>
-    <p class="muted small">Your own files on this phone (not the Line Inspection Manual). Preview shows under each name; tap a file to open it full screen. Search/indexing comes later.</p>
+    <p class="muted small">Your own files on this phone (not the Line Inspection Manual). Preview shows under each name; tap a file to open it full screen. Use the search bar to filter these files.</p>
     ${msg ? `<div class="note">${msg}</div>` : ''}
     <label class="btn pri" for="docsfile">📥 Add files</label>
     <input id="docsfile" type="file" multiple accept="application/pdf,.pdf,image/*,.png,.jpg,.jpeg,.webp,.heic,.doc,.docx,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden>
@@ -697,7 +701,11 @@ function setupMic() {
   });
 }
 // ---------------- routing ----------------
-function go(q) { addRecent(q); location.hash = '#/search?q=' + encodeURIComponent(q); }
+function onDocsTab() { return (location.hash || '').startsWith('#/docs'); }
+function go(q) {
+  if (onDocsTab()) { if ($('#q')) $('#q').value = q || ''; renderDocs(); return; }
+  addRecent(q); location.hash = '#/search?q=' + encodeURIComponent(q);
+}
 // history bookkeeping: each entry gets an index so a back swipe knows whether there is an in-app screen to go back to
 let NAVIDX = -1, LAST_SEARCH = '#/search';
 const tabOf = h => h.startsWith('#/browse') ? 'browse' : h.startsWith('#/cheat') ? 'cheat' : h.startsWith('#/manual') ? 'manual' : h.startsWith('#/docs') ? 'docs' : h.startsWith('#/search') || !h || h === '#' || h === '#/' ? 'search' : null;
@@ -723,7 +731,13 @@ function route() {
   document.querySelectorAll('#tabs a').forEach(a => a.classList.toggle('on', a.dataset.tab === tab));
   fillViewHeight();
   // Dismiss search keyboard when leaving Search so iOS doesn't leave the fixed tab bar raised.
-  if (tab !== 'search') { try { $('#q').blur(); } catch (_) {} }
+  const qEl = $('#q');
+  if (qEl) {
+    if (tab === 'docs') { qEl.placeholder = 'Search docs…'; qEl.setAttribute('aria-label', 'Search docs'); }
+    else { qEl.placeholder = 'Search defects, codes, rules…'; qEl.setAttribute('aria-label', 'Search the manual'); }
+  }
+  // Dismiss search keyboard when leaving Search/Docs so iOS doesn't leave the fixed tab bar raised.
+  if (tab !== 'search' && tab !== 'docs') { try { qEl.blur(); } catch (_) {} }
   if (!h.startsWith('#/page/')) { $('#modal').hidden = true; $('#modal').innerHTML = ''; }
   let m;
   if ((m = h.match(/^#\/page\/(\d+)/))) return showPage(+m[1]);
@@ -745,10 +759,10 @@ view.addEventListener('click', e => {
   const b = e.target.closest('[data-bf]'); if (b) { browseFilter = b.dataset.bf; renderBrowse(); }
 });
 let deb;
-$('#q').addEventListener('input', e => { clearTimeout(deb); deb = setTimeout(() => { const q = e.target.value; if (!location.hash.startsWith('#/search')) location.hash = '#/search'; history.replaceState(history.state, '', '#/search?q=' + encodeURIComponent(q)); LAST_SEARCH = location.hash; renderSearch(q); }, 220); });
+$('#q').addEventListener('input', e => { clearTimeout(deb); deb = setTimeout(() => { const q = e.target.value; if (onDocsTab()) { renderDocs(); return; } if (!location.hash.startsWith('#/search')) location.hash = '#/search'; history.replaceState(history.state, '', '#/search?q=' + encodeURIComponent(q)); LAST_SEARCH = location.hash; renderSearch(q); }, 220); });
 $('#q').addEventListener('input', e => { $('#qclear').hidden = !e.target.value; });
-$('#qclear').addEventListener('click', () => { clearTimeout(deb); const q = $('#q'); q.value = ''; $('#qclear').hidden = true; if (!location.hash.startsWith('#/search')) location.hash = '#/search'; history.replaceState(history.state, '', '#/search?q='); LAST_SEARCH = location.hash; renderSearch(''); q.focus(); });
-$('#qform').addEventListener('submit', e => { e.preventDefault(); $('#q').blur(); go($('#q').value); });
+$('#qclear').addEventListener('click', () => { clearTimeout(deb); const q = $('#q'); q.value = ''; $('#qclear').hidden = true; if (onDocsTab()) { renderDocs(); q.focus(); return; } if (!location.hash.startsWith('#/search')) location.hash = '#/search'; history.replaceState(history.state, '', '#/search?q='); LAST_SEARCH = location.hash; renderSearch(''); q.focus(); });
+$('#qform').addEventListener('submit', e => { e.preventDefault(); if (onDocsTab()) { renderDocs(); return; } $('#q').blur(); go($('#q').value); });
 window.addEventListener('hashchange', route);
 window.addEventListener('resize', () => {
   const h = location.hash || '#/search';
