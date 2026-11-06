@@ -629,10 +629,10 @@ function appearanceCard() {
   const modes = [['light', '☀️ Light'], ['dark', '🌙 Dark'], ['system', '📱 System']];
   return `<div class="card" id="appearance"><h3>Appearance</h3>
     <div class="seg" role="group" aria-label="Light or dark">${modes.map(([v, l]) => `<button type="button" data-m="${v}" aria-pressed="${m === v}">${l}</button>`).join('')}</div>
-    <p class="small muted" style="margin:4px 0 12px">System follows your iPhone’s Light/Dark setting (Settings › Display &amp; Brightness).</p>
+    
     <div class="small muted" style="font-weight:600">Colour scheme</div>
     <div class="swatches" role="group" aria-label="Colour scheme">${T.SCHEMES.map(s => `<button type="button" class="sw" data-s="${s.id}" aria-pressed="${sc === s.id}"><span class="dots"><i style="background:${s.dk}"></i><i style="background:${s.lt}"></i></span><span>${s.name}${s.sub ? `<small class="swsub">${s.sub}</small>` : ''}</span></button>`).join('')}</div>
-    <p class="small muted" style="margin:6px 0 0">Priority colours (Z Code red, Breakdown orange) stay the same in every scheme.</p></div>`;
+    </div>`;
 }
 function wireAppearance() {
   const c = $('#appearance'); if (!c) return;
@@ -655,7 +655,7 @@ async function renderManual(msg = '') {
     ${msg ? `<div class="note">${msg}</div>` : ''}
     <label class="btn pri" for="pdffile">📥 ${m ? 'Update manual (pick new PDF)' : 'Load manual PDF'}</label>
     <input id="pdffile" type="file" accept="application/pdf,.pdf" hidden>
-    
+    <p class="muted small">Processing happens on the phone. The PDF isn’t uploaded anywhere. Reading the text of a 1,400-page manual takes about a minute, then the example photos are cut out of the PDF (a few more minutes; search works meanwhile). Keep the app open while it runs. A new version replaces the old text and photos.</p>
     ${photoStatus()}
     <div id="prog"></div></div>
     <div class="card"><h3>Defect notes</h3>
@@ -670,7 +670,7 @@ async function renderManual(msg = '') {
     ${appearanceCard()}
     <div class="card"><h3>Storage</h3><p class="small muted">${est ? `Using ${(est.usage / 1e6).toFixed(1)} MB of ${(est.quota / 1e6).toFixed(0)} MB available.` : ''}</p>
     <button class="btn danger" id="wipe">Delete manual from this phone</button></div>
-    `;
+    <p class="muted small">Extractor v${esc(m ? m.extractorVersion : '')}. Defect cards are built automatically from the manual's layout. Always check the page reference before relying on a code or priority.</p>`;
   wireAppearance();
   $('#pdffile').addEventListener('change', e => e.target.files[0] && doUpdate(e.target.files[0]));
   const nf = $('#notesfile');
