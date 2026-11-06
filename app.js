@@ -1057,6 +1057,7 @@ const STANDALONE = navigator.standalone === true || (window.matchMedia && matchM
 function setupMic() {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   const btn = $('#mic'), msg = $('#micmsg'), q = $('#q');
+  if (!btn || !msg || !q) return;
   const tip = (t, ms = 12000) => { msg.hidden = false; msg.innerHTML = t; clearTimeout(tip.t); tip.t = setTimeout(() => msg.hidden = true, ms); };
   const KBTIP = `<b>Speak using the keyboard:</b> tap the <b>🎤</b> at the bottom right of the iPhone keyboard, say what you’re looking for, then tap it again. Results update as you talk.<br><small>No 🎤 on the keyboard? Turn on Settings › General › Keyboard › Enable Dictation.</small>`;
   let broken = sessionStorage.getItem('srBroken') === '1';
@@ -1210,7 +1211,7 @@ window.addEventListener('resize', () => {
   const q = qm ? decodeURIComponent(qm[1]) : '';
   if (!q.trim()) renderSearch('');
 });
-setupMic();
+// Keyboard button removed (v47); tap #q to bring up the keyboard.
 $('#ask').addEventListener('click', e => { e.preventDefault(); openAskSkynet(currentDefect()); });
 const SWIPE = initSwipe({ view, modal: $('#modal'), tabOf: h => tabOf(h || '#/search'), tabHref: t => t === 'search' ? LAST_SEARCH : '#/' + t,
   canGoBack: () => NAVIDX > 0, closeModal, standalone: () => STANDALONE || document.documentElement.dataset.standalone === '1' });
