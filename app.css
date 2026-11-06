@@ -39,7 +39,7 @@ header#top{position:sticky;top:0;z-index:5;background:var(--surf);padding:calc(1
 .logo{color:var(--ink)} .ver{margin-left:auto;font-weight:500;font-size:13px;color:var(--mute)}
 .searchbar{display:flex;gap:8px}
 .qwrap{position:relative;flex:1;min-width:0;display:flex;align-items:center}
-#q{flex:1;min-width:0;width:100%;font-size:18px;padding:12px 40px 12px 14px;border-radius:var(--r);border:1px solid var(--line2);background:var(--bg);color:var(--fg);outline:none;-webkit-appearance:none;appearance:none}
+#q{flex:1;min-width:0;width:100%;font-size:18px;padding:12px 52px 12px 14px;border-radius:var(--r);border:1px solid var(--line2);background:var(--bg);color:var(--fg);outline:none;-webkit-appearance:none;appearance:none}
 #q::-webkit-search-cancel-button,#q::-webkit-search-decoration{-webkit-appearance:none;appearance:none}
 #q::placeholder{color:var(--mute)}
 #q:focus{border-color:var(--acc);box-shadow:inset 0 0 0 1px var(--acc)}
@@ -166,7 +166,7 @@ input.filter:focus{outline:none;border-color:var(--acc)}
 [data-scheme="ios"] body,[data-scheme="ios"] button,[data-scheme="ios"] input{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display","Helvetica Neue",Helvetica,Arial,sans-serif;letter-spacing:-.01em}
 [data-scheme="ios"] header#top{background:var(--bar);-webkit-backdrop-filter:saturate(180%) blur(20px);backdrop-filter:saturate(180%) blur(20px);border-bottom:.5px solid var(--line)}
 [data-scheme="ios"] .brand{font-size:22px;font-weight:800;letter-spacing:-.02em}
-[data-scheme="ios"] #q{background:var(--qfill);border:0;border-radius:10px;padding:13px 40px 13px 14px}
+[data-scheme="ios"] #q{background:var(--qfill);border:0;border-radius:10px;padding:13px 52px 13px 14px}
 [data-scheme="ios"] #q:focus{box-shadow:none}
 [data-scheme="ios"] .mic,[data-scheme="ios"] .hdrbtn{background:var(--qfill);border:0;border-radius:10px}
 [data-scheme="ios"] .askbtn{background:var(--acc);color:var(--on-acc)}
@@ -220,7 +220,7 @@ input.filter:focus{outline:none;border-color:var(--acc)}
 /* swipe navigation: the sliding view must never create sideways page scroll */
 html,body{overflow-x:hidden} @supports (overflow:clip){html,body{overflow-x:clip}}
 
-.qclear{position:absolute;right:8px;top:50%;transform:translateY(-50%);z-index:1;width:28px;height:28px;min-width:28px;display:inline-flex;align-items:center;justify-content:center;padding:0;border:0;border-radius:50%;background:transparent;color:var(--muted,#8a8a8a);cursor:pointer;-webkit-tap-highlight-color:transparent}
+.qclear{position:absolute;right:8px;top:50%;transform:translateY(-50%);z-index:1;width:44px;height:44px;min-width:44px;min-height:44px;display:inline-flex;align-items:center;justify-content:center;padding:0;border:0;border-radius:50%;background:transparent;color:var(--muted,#8a8a8a);cursor:pointer;-webkit-tap-highlight-color:transparent}
 .qclear[hidden]{display:none}
 .qclear:active{opacity:.6}
 [data-scheme="ios"] .qclear,[data-scheme="manual"] .qclear{background:transparent;border:0}
