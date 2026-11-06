@@ -247,6 +247,11 @@ function closeNotesPop() {
     b.classList.remove('on');
     b.style.zIndex = '';
     b.style.position = '';
+    b.style.top = '';
+    b.style.left = '';
+    b.style.width = '';
+    b.style.height = '';
+    b.style.margin = '';
   });
   notesPopId = null;
 }
@@ -265,11 +270,17 @@ function openNotesPop(d, btn) {
     });
   }
   notesPopId = d.id;
-  document.querySelectorAll('[data-open-notes].on').forEach(b => b.classList.remove('on'));
   if (btn) {
+    const r = btn.getBoundingClientRect();
     btn.classList.add('on');
+    // Keep the Notes button above the scrim so a second tap toggles closed.
+    btn.style.position = 'fixed';
+    btn.style.top = r.top + 'px';
+    btn.style.left = r.left + 'px';
+    btn.style.width = r.width + 'px';
+    btn.style.height = r.height + 'px';
     btn.style.zIndex = '30';
-    btn.style.position = 'relative';
+    btn.style.margin = '0';
   }
   el.hidden = false;
   const barTitle = d.title ? `Notes · ${esc(d.title)}` : 'Notes';
@@ -281,6 +292,7 @@ function openNotesPop(d, btn) {
 }
 function toggleNotesPop(d, btn) {
   if (notesPopId === d.id) { closeNotesPop(); return; }
+  closeNotesPop();
   openNotesPop(d, btn);
 }
 function copyNotesFor(cn) {
