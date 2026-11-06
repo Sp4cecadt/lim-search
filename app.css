@@ -253,8 +253,8 @@ details:not([open]) > *:not(summary){display:none}
 /* Search Defect cards: Notes + LIM details on an in-flow heading row; open LIM details overlays the card (out of flow). */
 .defect-cards-block{position:relative;overflow:visible}
 .defect-cards-heading-row{
-  display:flex;flex-wrap:nowrap;justify-content:space-between;align-items:center;gap:8px;
-  margin:22px 4px 8px;min-height:44px;overflow:visible
+  display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:8px;row-gap:6px;
+  width:100%;box-sizing:border-box;margin:22px 4px 8px;min-height:44px;overflow:visible
 }
 [data-scheme="ios"] .defect-cards-heading-row{margin:24px 16px 6px}
 .defect-cards-toggle{
@@ -276,8 +276,8 @@ details:not([open]) > *:not(summary){display:none}
   margin:8px 4px 10px;position:relative;overflow:visible
 }
 .defect-card-tools-heading{
-  position:relative;z-index:auto;margin:0 0 0 auto;max-width:100%;min-width:0;
-  align-items:center;height:auto;flex:0 0 auto
+  position:relative;z-index:auto;margin:0;flex:1 0 100%;width:100%;max-width:100%;min-width:0;
+  box-sizing:border-box;flex-wrap:wrap;justify-content:flex-end;align-items:center;height:auto;overflow:visible
 }
 .defect-card-tools:has(.lim-details-ext[open]){z-index:12}
 /* Matching compact boxes for LIM details + Notes above defect cards */
@@ -349,8 +349,7 @@ table.scale td.l.sev-red,table.scale td.l.sev-grey,table.scale td.l.sev-other{-w
 /* Keyboard + Ask buttons: theme colour in dark mode, white in light mode */
 :root[data-mode="light"] #ask.askbtn{background:#ffffff}
 .dc-anchor{display:block;height:0}
-.btn-cycle{flex:none;align-self:center;font-variant-numeric:tabular-nums}
-.defect-cards-heading-row{flex-wrap:wrap;row-gap:6px}
-.defect-cards-toggle{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.defect-card-tools-heading{flex:0 1 auto;flex-wrap:wrap;justify-content:flex-end}
+.btn-cycle{align-self:center;font-variant-numeric:tabular-nums}
+.defect-cards-toggle{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.defect-card-tools .btn-lim,.defect-card-tools .btn-notes,.defect-card-tools .btn-cycle{flex:0 0 auto}
 #ask{flex:none;margin:0}
