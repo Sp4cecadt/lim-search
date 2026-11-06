@@ -37,8 +37,8 @@ a{color:var(--ink)}
 header#top{position:sticky;top:0;z-index:5;background:var(--surf);padding:calc(10px + var(--sat,env(safe-area-inset-top))) 12px 10px;border-bottom:1px solid var(--line)}
 .brand{font-weight:700;font-size:18px;letter-spacing:-.01em;display:flex;align-items:center;gap:6px;margin-bottom:8px}
 .logo{color:var(--ink)} .ver{margin-left:auto;font-weight:500;font-size:13px;color:var(--mute)}
-.searchbar{display:flex;gap:8px}
-.qwrap{position:relative;flex:1;min-width:0;display:flex;align-items:center}
+.searchbar,#qform{display:flex;width:100%;box-sizing:border-box;align-items:center;gap:8px}
+.qwrap{position:relative;flex:1 1 auto;min-width:0;width:auto;display:flex;align-items:center}
 #q{flex:1;min-width:0;width:100%;font-size:18px;padding:12px 52px 12px 14px;border-radius:var(--r);border:1px solid var(--line2);background:var(--bg);color:var(--fg);outline:none;-webkit-appearance:none;appearance:none}
 #q::-webkit-search-cancel-button,#q::-webkit-search-decoration{-webkit-appearance:none;appearance:none}
 #q::placeholder{color:var(--mute)}
@@ -276,7 +276,7 @@ details:not([open]) > *:not(summary){display:none}
   margin:8px 4px 10px;position:relative;overflow:visible
 }
 .defect-card-tools-heading{
-  position:relative;z-index:auto;margin:0;max-width:min(100%, 360px);
+  position:relative;z-index:auto;margin:0 0 0 auto;max-width:100%;min-width:0;
   align-items:center;height:auto;flex:0 0 auto
 }
 .defect-card-tools:has(.lim-details-ext[open]){z-index:12}
@@ -350,3 +350,7 @@ table.scale td.l.sev-red,table.scale td.l.sev-grey,table.scale td.l.sev-other{-w
 :root[data-mode="light"] #ask.askbtn{background:#ffffff}
 .dc-anchor{display:block;height:0}
 .btn-cycle{flex:none;align-self:center;font-variant-numeric:tabular-nums}
+.defect-cards-heading-row{flex-wrap:wrap;row-gap:6px}
+.defect-cards-toggle{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.defect-card-tools-heading{flex:0 1 auto;flex-wrap:wrap;justify-content:flex-end}
+#ask{flex:none;margin:0}
