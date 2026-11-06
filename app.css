@@ -46,7 +46,7 @@ header#top{position:sticky;top:0;z-index:5;background:var(--surf);padding:calc(1
 .hdrbtn{width:48px;height:48px;min-width:48px;min-height:48px;flex:none;padding:0;display:inline-flex;align-items:center;justify-content:center;border-radius:var(--r);border:1px solid var(--line2);background:var(--surf2);color:var(--fg);-webkit-tap-highlight-color:transparent}
 .hdrbtn svg{width:32px;height:32px;display:block}
 .mic{width:48px;height:48px;min-width:48px;min-height:48px;flex:none;font-size:22px;border-radius:var(--r);border:1px solid var(--line2);background:var(--surf2);color:var(--fg)}
-.askbtn{background:var(--acc);color:var(--on-acc);border-color:var(--acc)}
+.askbtn{/* same chrome as #mic / .hdrbtn; blue cloud SVG keeps its own fill */}
 .askbtn:active{opacity:.85}
 .mic.on{background:var(--red);border-color:var(--red);animation:pulse 1s infinite}
 @keyframes pulse{50%{opacity:.6}}
@@ -169,7 +169,6 @@ input.filter:focus{outline:none;border-color:var(--acc)}
 [data-scheme="ios"] #q{background:var(--qfill);border:0;border-radius:10px;padding:13px 52px 13px 14px}
 [data-scheme="ios"] #q:focus{box-shadow:none}
 [data-scheme="ios"] .mic,[data-scheme="ios"] .hdrbtn{background:var(--qfill);border:0;border-radius:10px}
-[data-scheme="ios"] .askbtn{background:var(--acc);color:var(--on-acc)}
 [data-scheme="ios"] nav#tabs{background:var(--bar);-webkit-backdrop-filter:saturate(180%) blur(20px);backdrop-filter:saturate(180%) blur(20px);border-top:.5px solid var(--line);padding-bottom:env(safe-area-inset-bottom, 0px);height:calc(50px + env(safe-area-inset-bottom, 0px))}
 [data-scheme="ios"] nav#tabs a{color:var(--tabgray);font-size:11px;font-weight:500;border-top:0;margin-top:0;height:50px;min-height:50px;max-height:50px;padding:4px 2px 4px}
 [data-scheme="ios"] nav#tabs a.on{color:var(--acc);font-weight:500;box-shadow:inset 0 2px 0 var(--acc)}
@@ -207,8 +206,7 @@ input.filter:focus{outline:none;border-color:var(--acc)}
 [data-scheme="manual"] .brand,[data-scheme="manual"] .logo{color:var(--mhdr-fg)} [data-scheme="manual"] .ver{color:var(--mhdr-mute)}
 [data-scheme="manual"] #q{background:var(--mq);border-color:var(--mq-line);color:var(--fg)}
 [data-scheme="manual"] #q:focus{border-color:var(--acc)}
-[data-scheme="manual"] .mic,[data-scheme="manual"] .hdrbtn:not(.askbtn){background:var(--mq);border-color:var(--mq-line)}
-[data-scheme="manual"] .askbtn{background:var(--acc);color:var(--on-acc);border-color:var(--acc)}
+[data-scheme="manual"] .mic,[data-scheme="manual"] .hdrbtn{background:var(--mq);border-color:var(--mq-line)}
 [data-scheme="manual"] #sbband{background:var(--mhdr)} :root[data-mode="light"][data-scheme="manual"] #sbband{background:var(--sb)}
 [data-scheme="manual"] h2{color:var(--h2)}
 [data-scheme="manual"] table.scale td.l{font-style:italic}
@@ -252,11 +250,11 @@ details:not([open]) > *:not(summary){display:none}
 .row.docrow .docprev-img,.row.docrow .docprev-canvas{display:block;width:100%;height:auto;max-height:220px;object-fit:contain;background:#fff;vertical-align:top}
 .row.docrow .btn.danger{flex:none;align-self:flex-start;margin-top:0}
 
-/* Search Defect cards: Notes + LIM details on an in-flow heading row (no absolute overlap on cards). */
-.defect-cards-block{position:relative}
+/* Search Defect cards: Notes + LIM details on an in-flow heading row; open LIM details overlays the card (out of flow). */
+.defect-cards-block{position:relative;overflow:visible}
 .defect-cards-heading-row{
-  display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:8px;
-  margin:22px 4px 8px;min-height:44px
+  display:flex;flex-wrap:nowrap;justify-content:space-between;align-items:center;gap:8px;
+  margin:22px 4px 8px;min-height:44px;overflow:visible
 }
 [data-scheme="ios"] .defect-cards-heading-row{margin:24px 16px 6px}
 .defect-cards-toggle{
@@ -272,12 +270,16 @@ details:not([open]) > *:not(summary){display:none}
 [data-scheme="manual"] .defect-cards-toggle{color:var(--h2)}
 .defect-cards-block.is-collapsed .defect-cards-body,
 .defect-cards-block.is-collapsed .defect-card-tools-heading{display:none}
-.defect-card-tools{display:flex;flex-wrap:wrap;justify-content:flex-end;align-items:center;gap:8px;margin:8px 4px 10px}
-.defect-card-tools-heading{
-  position:static;z-index:auto;margin:0;max-width:min(100%, 280px);
-  align-items:center;height:auto;flex:0 1 auto
+.defect-cards-body{overflow:visible}
+.defect-card-tools{
+  display:flex;flex-wrap:nowrap;justify-content:flex-end;align-items:center;gap:8px;
+  margin:8px 4px 10px;position:relative;overflow:visible
 }
-.defect-card-tools-heading:has(.lim-details-ext[open]){flex:1 1 100%;max-width:100%}
+.defect-card-tools-heading{
+  position:relative;z-index:auto;margin:0;max-width:min(100%, 280px);
+  align-items:center;height:auto;flex:0 0 auto
+}
+.defect-card-tools:has(.lim-details-ext[open]){z-index:12}
 /* Matching compact boxes for LIM details + Notes above defect cards */
 .defect-card-tools .lim-details-ext > summary,
 .defect-card-tools .btn-notes{
@@ -290,23 +292,42 @@ details:not([open]) > *:not(summary){display:none}
 [data-scheme="ios"] .defect-card-tools .btn-notes{
   border:0;background:var(--fill);color:var(--ink);font-weight:600
 }
-.lim-details-ext{margin:0;border-top:none;padding-top:0;flex:none}
+/* Spacer keeps Notes/LIM layout stable when Notes is lifted above the scrim */
+.notes-btn-ph{display:inline-block;flex:none;visibility:hidden;pointer-events:none;box-sizing:border-box}
+.lim-details-ext{
+  margin:0;border-top:none;padding-top:0;flex:none;position:relative;
+  display:inline-flex;flex-direction:column;align-items:flex-end;max-width:100%
+}
 .lim-details-ext > summary{
   min-height:auto;padding:8px 12px;font-size:15px;font-weight:600;line-height:1.2;
   border:1px solid var(--line2);background:var(--surf2);color:var(--fg);border-radius:10px;
-  white-space:nowrap;list-style:none;-webkit-tap-highlight-color:transparent
+  white-space:nowrap;list-style:none;-webkit-tap-highlight-color:transparent;
+  box-sizing:border-box;margin:0;align-self:flex-end
 }
 .lim-details-ext > summary::-webkit-details-marker{display:none}
-.lim-details-ext > summary::before{content:'▸';margin-right:6px;font-weight:700}
+.lim-details-ext > summary::before{
+  content:'▸';display:inline-block;width:1em;margin-right:6px;font-weight:700;text-align:center
+}
 .lim-details-ext[open] > summary::before{content:'▾'}
 [data-scheme="ios"] .lim-details-ext > summary{border:0;background:var(--fill);color:var(--ink);font-weight:600}
+/* Open LIM details panel: out of flow, layered over the defect card below */
 .lim-details-ext > .pre{
-  margin-top:8px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surf);
-  max-width:min(92vw, 520px);max-height:min(50vh, 360px);overflow:auto;-webkit-overflow-scrolling:touch;
-  white-space:pre-wrap;font-size:15px;color:var(--pre);box-sizing:border-box
+  position:absolute;top:calc(100% + 6px);right:0;left:auto;z-index:20;
+  margin:0;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surf);
+  width:min(92vw, 360px);max-width:min(92vw, 360px);max-height:min(50vh, 360px);
+  overflow:auto;-webkit-overflow-scrolling:touch;
+  white-space:pre-wrap;font-size:15px;color:var(--pre);box-sizing:border-box;
+  box-shadow:0 10px 28px rgba(0,0,0,.28)
 }
-.defect-card-tools-heading .lim-details-ext[open]{flex:1 1 100%;order:3}
-.defect-card-tools-heading .lim-details-ext[open] > .pre{width:100%;max-width:min(92vw, 520px)}
+[data-scheme="ios"] .lim-details-ext > .pre{border:.5px solid var(--line)}
+/* Notes popup aligned to a search-result card outline (JS sets --notes-* vars) */
+.notes-pop.notes-pop-card .notes-pop-panel{
+  left:var(--notes-left, 12px);right:auto;top:var(--notes-top, 12%);
+  width:var(--notes-width, auto);max-width:none;
+  max-height:var(--notes-max-h, min(76%, calc(100% - 100px)));
+  border-radius:var(--r)
+}
+[data-scheme="ios"] .notes-pop.notes-pop-card .notes-pop-panel{border-radius:12px}
 
 /* Severity cells: background = the manual's own shading for that card (Red = raise a defect, Grey = no defect; manual §1.1.3 p.10) */
 table.scale td.l.sevc{border-left:1px solid var(--line);border-right:1px solid var(--line)}

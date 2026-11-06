@@ -298,7 +298,16 @@ function bindNoteHold(root) {
 let notesPopId = null;
 function closeNotesPop() {
   const el = document.getElementById('notes-pop');
-  if (el) { el.hidden = true; el.innerHTML = ''; }
+  if (el) {
+    el.hidden = true;
+    el.innerHTML = '';
+    el.classList.remove('notes-pop-card');
+    el.style.removeProperty('--notes-left');
+    el.style.removeProperty('--notes-top');
+    el.style.removeProperty('--notes-width');
+    el.style.removeProperty('--notes-max-h');
+  }
+  document.querySelectorAll('.notes-btn-ph').forEach(ph => ph.remove());
   document.querySelectorAll('[data-open-notes].on').forEach(b => {
     b.classList.remove('on');
     b.style.zIndex = '';
@@ -310,6 +319,18 @@ function closeNotesPop() {
     b.style.margin = '';
   });
   notesPopId = null;
+}
+/** Defect card immediately under a search-result Notes / LIM tools row. */
+function cardUnderToolsBtn(btn) {
+  const tools = btn && btn.closest('.defect-card-tools');
+  if (!tools) return null;
+  if (tools.classList.contains('defect-card-tools-heading')) {
+    const body = document.getElementById('defect-cards-body');
+    return body ? body.querySelector('.card') : null;
+  }
+  let n = tools.nextElementSibling;
+  while (n && !n.classList.contains('card')) n = n.nextElementSibling;
+  return n;
 }
 function openNotesPop(d, btn) {
   let el = document.getElementById('notes-pop');
@@ -356,8 +377,17 @@ function openNotesPop(d, btn) {
     });
   }
   notesPopId = d.id;
+  const card = btn ? cardUnderToolsBtn(btn) : null;
   if (btn) {
     const r = btn.getBoundingClientRect();
+    // Spacer holds the flex slot so LIM details / heading row never reflow when Notes lifts above the scrim.
+    document.querySelectorAll('.notes-btn-ph').forEach(ph => ph.remove());
+    const ph = document.createElement('span');
+    ph.className = 'notes-btn-ph';
+    ph.setAttribute('aria-hidden', 'true');
+    ph.style.width = r.width + 'px';
+    ph.style.height = r.height + 'px';
+    btn.parentNode.insertBefore(ph, btn);
     btn.classList.add('on');
     // Keep the Notes button above the scrim so a second tap toggles closed.
     btn.style.position = 'fixed';
@@ -367,6 +397,22 @@ function openNotesPop(d, btn) {
     btn.style.height = r.height + 'px';
     btn.style.zIndex = '30';
     btn.style.margin = '0';
+  }
+  if (card) {
+    const cr = card.getBoundingClientRect();
+    el.classList.add('notes-pop-card');
+    el.style.setProperty('--notes-left', cr.left + 'px');
+    el.style.setProperty('--notes-top', cr.top + 'px');
+    el.style.setProperty('--notes-width', cr.width + 'px');
+    // Cover the card; allow a bit more height if the card is short so notes stay usable.
+    const maxH = Math.max(cr.height, Math.min(window.innerHeight * 0.55, 420));
+    el.style.setProperty('--notes-max-h', maxH + 'px');
+  } else {
+    el.classList.remove('notes-pop-card');
+    el.style.removeProperty('--notes-left');
+    el.style.removeProperty('--notes-top');
+    el.style.removeProperty('--notes-width');
+    el.style.removeProperty('--notes-max-h');
   }
   el.hidden = false;
   const barTitle = d.title ? `Notes · ${esc(d.title)}` : 'Notes';
@@ -502,7 +548,7 @@ function renderSearch(q) {
     if (r.defects.length > 2) body += `<div class="card">${r.defects.slice(2).map(x => `<a class="row" href="#/d/${x.d.id}"><span>${hl(x.d.title, terms)}<br><small>§${esc(x.d.section)} ${esc(x.d.sectionTitle)} · p.${x.d.page}</small></span><span>${x.d.zCode ? '<span class="b z">Z</span>' : ''}${x.d.breakdown ? ' <span class="b bd">BD</span>' : ''} ›</span></a>`).join('')}</div>`;
     const headingTools = defectTools(top[0].d, true);
     const defectTitle = `Defect cards ${r.mode === 'any' ? '<small>(partial match)</small>' : ''}`;
-    // In-flow heading row: title + tools share one flex row so open LIM details pushes cards down (no absolute overlap).
+    // In-flow heading row: title + tools share one flex row; LIM details overlay sits on the card (see CSS).
     h += `<div class="defect-cards-block">` +
       `<div class="defect-cards-heading-row">` +
       `<button type="button" class="defect-cards-toggle" aria-expanded="true" aria-controls="defect-cards-body">${defectTitle}</button>` +
