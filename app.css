@@ -68,6 +68,17 @@ h2{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;
 .docsubs{margin:12px 0 8px}
 .card{background:var(--surf);border:1px solid var(--line);border-radius:var(--r);padding:14px;margin:10px 0}
 .card h3{margin:0 0 4px;font-size:20px;font-weight:700;line-height:1.25;letter-spacing:-.01em}
+.card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin:0 0 4px}
+.card-head h3{margin:0;flex:1;min-width:0}
+.btn-notes{flex:none;align-self:flex-start;padding:8px 12px;font-size:15px;white-space:nowrap}
+.notes-pop{position:fixed;inset:0;z-index:25}
+.notes-pop[hidden]{display:none!important}
+.notes-pop-scrim{position:absolute;inset:0;background:var(--scrim)}
+.notes-pop-panel{position:absolute;left:12px;right:12px;top:max(12%, calc(env(safe-area-inset-top,0px) + 56px));max-height:min(76%, calc(100% - 100px));display:flex;flex-direction:column;background:var(--surf);border:1px solid var(--line);border-radius:var(--r);box-shadow:0 12px 40px rgba(0,0,0,.35);overflow:hidden}
+.notes-pop-bar{display:flex;gap:8px;align-items:center;padding:10px 10px 8px;background:var(--surf);border-bottom:1px solid var(--line);flex:none}
+.notes-pop-bar .t{flex:1;font-weight:700;font-size:16px;line-height:1.25;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.notes-pop-body{flex:1;overflow:auto;-webkit-overflow-scrolling:touch;padding:10px}
+.notes-pop-body .btn{margin-top:10px}
 .sec{color:var(--mute);font-size:14px}
 .badges{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
 .b{font-size:13px;font-weight:700;padding:4px 9px;border-radius:6px;background:var(--surf2);border:1px solid var(--line);color:var(--fg)}
@@ -161,6 +172,7 @@ input.filter:focus{outline:none;border-color:var(--acc)}
 [data-scheme="ios"] h2{font-size:13px;font-weight:400;letter-spacing:0;color:var(--mute);margin:24px 16px 6px}
 [data-scheme="ios"] .card{border:0;border-radius:12px;padding:14px 16px}
 [data-scheme="ios"] .card h3{font-size:22px;font-weight:700;letter-spacing:-.02em}
+[data-scheme="ios"] .notes-pop-bar{background:var(--bar);-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);border-bottom:.5px solid var(--line)}
 [data-scheme="ios"] .chip{border:0;background:var(--surf)}
 [data-scheme="ios"] .b{border:0}
 [data-scheme="ios"] .qc,[data-scheme="ios"] .tag{border:0;background:var(--fill)}

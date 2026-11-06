@@ -227,21 +227,74 @@ function wireCardUploads(root = view) {
     });
   });
 }
-function notesSection(d, open = false) {
-  let inner;
+function notesBody(d) {
   if (!NOTES || !NOTES.sections || !NOTES.sections.length) {
-    inner = `<p class="muted small">No notes file on this phone yet. Use “Upload notes file” on this card (or in Settings). That file only fills this Notes section — it does not change the Line Inspection Manual information on the card.</p>`;
-  } else {
-    const items = matchNotes(NOTES, d);
-    if (!items.length) {
-      const where = d.section ? ` (§${esc(d.section)}${d.sectionTitle ? ' ' + esc(d.sectionTitle) : ''})` : '';
-      inner = `<p class="muted small">No notes in “${esc(NOTES.fileName || 'your file')}” matched this card${where}. Headings in the file should use the manual’s section numbers, for example “6.2 Standard Poles”.</p>`;
-    } else {
-      inner = items.map(it => `<div class="ex">${it.heading ? `<b>${esc(it.heading)}</b>` : ''}<div class="pre small">${esc(it.text)}</div></div>`).join('')
-        + `<button type="button" class="btn" data-copy-notes="${esc(d.id)}">Copy notes</button>`;
-    }
+    return `<p class="muted small">No notes file on this phone yet. Use “Upload notes file” in Settings. That file only fills this Notes section — it does not change the Line Inspection Manual information on the card.</p>`;
   }
-  return `<details ${open ? 'open' : ''}><summary>Notes</summary>${inner}</details>`;
+  const items = matchNotes(NOTES, d);
+  if (!items.length) {
+    const where = d.section ? ` (§${esc(d.section)}${d.sectionTitle ? ' ' + esc(d.sectionTitle) : ''})` : '';
+    return `<p class="muted small">No notes in “${esc(NOTES.fileName || 'your file')}” matched this card${where}. Headings in the file should use the manual’s section numbers, for example “6.2 Standard Poles”.</p>`;
+  }
+  return items.map(it => `<div class="ex">${it.heading ? `<b>${esc(it.heading)}</b>` : ''}<div class="pre small">${esc(it.text)}</div></div>`).join('')
+    + `<button type="button" class="btn" data-copy-notes="${esc(d.id)}">Copy notes</button>`;
+}
+let notesPopId = null;
+function closeNotesPop() {
+  const el = document.getElementById('notes-pop');
+  if (el) { el.hidden = true; el.innerHTML = ''; }
+  document.querySelectorAll('[data-open-notes].on').forEach(b => {
+    b.classList.remove('on');
+    b.style.zIndex = '';
+    b.style.position = '';
+  });
+  notesPopId = null;
+}
+function openNotesPop(d, btn) {
+  let el = document.getElementById('notes-pop');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'notes-pop';
+    el.className = 'notes-pop';
+    el.hidden = true;
+    document.body.appendChild(el);
+    el.addEventListener('click', e => {
+      if (e.target.closest('[data-close-notes]')) { e.preventDefault(); closeNotesPop(); return; }
+      const cn = e.target.closest('[data-copy-notes]');
+      if (cn) { e.preventDefault(); copyNotesFor(cn); }
+    });
+  }
+  notesPopId = d.id;
+  document.querySelectorAll('[data-open-notes].on').forEach(b => b.classList.remove('on'));
+  if (btn) {
+    btn.classList.add('on');
+    btn.style.zIndex = '30';
+    btn.style.position = 'relative';
+  }
+  el.hidden = false;
+  const barTitle = d.title ? `Notes · ${esc(d.title)}` : 'Notes';
+  el.innerHTML = `<div class="notes-pop-scrim" data-close-notes></div>
+    <div class="notes-pop-panel" role="dialog" aria-modal="true" aria-label="Notes">
+      <div class="notes-pop-bar"><span class="t">${barTitle}</span><button type="button" class="btn" data-close-notes aria-label="Close">✕</button></div>
+      <div class="notes-pop-body">${notesBody(d)}</div>
+    </div>`;
+}
+function toggleNotesPop(d, btn) {
+  if (notesPopId === d.id) { closeNotesPop(); return; }
+  openNotesPop(d, btn);
+}
+function copyNotesFor(cn) {
+  const id = cn.getAttribute('data-copy-notes');
+  const d = ENG && ENG.byId.get(id);
+  const items = (d && NOTES) ? matchNotes(NOTES, d) : [];
+  const text = items.map(it => [it.heading, it.text].filter(Boolean).join('\n')).join('\n\n');
+  (async () => {
+    try {
+      await navigator.clipboard.writeText(text);
+      cn.textContent = 'Copied';
+      setTimeout(() => { cn.textContent = 'Copy notes'; }, 1600);
+    } catch (_) { cn.textContent = 'Couldn’t copy'; }
+  })();
 }
 function defectCard(d, { open = false, terms = [] } = {}) {
   const cls = d.zCode ? 'z' : d.breakdown ? 'bd' : '';
@@ -269,7 +322,10 @@ function defectCard(d, { open = false, terms = [] } = {}) {
   const ex = d.examples.map((e, i) => ({ ...e, key: d.id + '/' + i })).filter(e => e.caption || e.tags.length);
   const nPh = ex.filter(e => PHOTOS.has(e.key)).length;
   return `<article class="card defect ${cls}">
-    <h3><a href="#/d/${d.id}" style="color:inherit;text-decoration:none">${hl(d.title, terms)}</a></h3>
+    <div class="card-head">
+      <h3><a href="#/d/${d.id}" style="color:inherit;text-decoration:none">${hl(d.title, terms)}</a></h3>
+      <button type="button" class="btn btn-notes" data-open-notes="${esc(d.id)}" aria-label="Notes">Notes</button>
+    </div>
     <div class="sec">§${esc(d.num || d.section)} ${esc(d.sectionTitle)} · ${pageLink(d.page, d.pageLabel)}</div>
     <div class="badges">${badges.join('')}</div>
     ${warn.map(w => `<div class="note">⚠️ ${esc(w)}</div>`).join('')}
@@ -279,8 +335,6 @@ function defectCard(d, { open = false, terms = [] } = {}) {
     ${ex.length ? `<details class="phx" ${open ? 'open' : ''}><summary>${nPh ? '📷 ' : ''}Photo examples (${ex.length})</summary>${!PHOTOS.size ? `<div class="note small">The example photos aren’t on this phone yet. <a href="#/manual">Manual tab › Add photos</a></div>` : ''}${ex.map(e => `<div class="ex">${PHOTOS.has(e.key) ? `<button class="phb" data-ph="${e.key}" aria-label="Enlarge photo"><img data-phk="${e.key}" alt="Example photo from p.${e.p}"><span class="zoomi">⤢</span></button>` : ''}${hl(e.caption, terms)}<div>${e.tags.map(t => `<span class="tag ${t.k === 'Priority' && /z/i.test(t.v) ? 'zt' : ''}">${t.bfra ? esc(t.bfra) + ' ' : ''}${esc(t.k)}: ${esc(t.v)}</span>`).join('')} ${pageLink(e.p)}</div></div>`).join('')}</details>` : ''}
     ${d.summary ? `<details><summary>Section 5 summary table row</summary><div class="small muted">As printed in the condition summary table, ${pageLink(d.summary.p)}. Columns may run together.</div><dl class="kv"><dt>Quick code</dt><dd>${esc(d.summary.quickCode)}</dd><dt>Severity</dt><dd>${esc(d.summary.severity)}</dd></dl><div class="pre small">${hl(d.summary.details, terms)}</div></details>` : ''}
     ${d.kind === 'Summary table only' ? `<div class="note">There's no separate condition example page for this one. It's taken from the Section 5 summary table, ${pageLink(d.page)}, so check the page.</div>` : ''}
-    ${cardFileActions(d)}
-    ${notesSection(d, open)}
     <div class="small muted" style="margin-top:8px">${refs.join(' · ')}</div>
   </article>`;
 }
@@ -485,6 +539,7 @@ function docIsImage(f) {
 }
 /** Open a user Doc in the modal: images inline, PDFs via pdf.js, other types via blob link. */
 async function showUserDoc(id) {
+  closeNotesPop();
   const f = await store.docGet(id).catch(() => null);
   if (!f || !f.blob) return;
   const m = $('#modal'); m.hidden = false;
@@ -783,6 +838,7 @@ async function hydratePhotos(root = view) {
 async function showPhoto(k) {
   const [did, i] = k.split('/'); const d = ENG && ENG.byId.get(did); const e = d && d.examples[+i];
   const u = await phSrc(k); if (!u) return;
+  closeNotesPop();
   const m = $('#modal'); m.hidden = false;
   m.innerHTML = `<div class="bar"><button class="btn" id="mx">✕</button><span class="t">${esc(d ? d.title : '')}</span><button class="btn" id="mz">＋</button></div>
     <div class="body phbody" id="mbody"><img id="bigph" src="${u}" alt="Example photo"><div class="phcap">${esc(e ? e.caption : '')}<div>${e ? e.tags.map(t => `<span class="tag">${t.bfra ? esc(t.bfra) + ' ' : ''}${esc(t.k)}: ${esc(t.v)}</span>`).join('') : ''} ${e ? `<a class="pg" href="#/page/${e.p}">p.${e.p}</a>` : ''}</div></div></div>`;
@@ -793,6 +849,7 @@ async function showPhoto(k) {
 // ---------------- PDF page viewer ----------------
 let pdfDoc = null;
 async function showPage(n) {
+  closeNotesPop();
   const m = $('#modal'); m.hidden = false;
   const chunks = DATA ? DATA.chunks.filter(c => c.p === n) : [];
   m.innerHTML = `<div class="bar"><button class="btn" id="mx">✕</button><span class="t">PDF page ${n}</span><button class="btn" id="mprev">‹</button><button class="btn" id="mnext">›</button><button class="btn" id="mz">＋</button></div><div class="body" id="mbody"><p class="muted">Loading…</p></div>`;
@@ -898,6 +955,7 @@ function route() {
   // Dismiss search keyboard when leaving Search/Docs so iOS doesn't leave the fixed tab bar raised.
   if (tab !== 'search' && tab !== 'docs') { try { qEl.blur(); } catch (_) {} }
   if (!h.startsWith('#/page/')) { $('#modal').hidden = true; $('#modal').innerHTML = ''; }
+  closeNotesPop();
   let m;
   if ((m = h.match(/^#\/page\/(\d+)/))) return showPage(+m[1]);
   if ((m = h.match(/^#\/d\/(\w+)/))) { const d = ENG && ENG.byId.get(m[1]); view.innerHTML = d ? `<a class="btn" href="#/search" data-back>‹ Back</a>${defectCard(d, { open: true, terms: lastQ ? lastQ.split(/\s+/) : [] })}` : ''; window.scrollTo(0, 0); hydratePhotos(); wireCardUploads(); return; }
@@ -912,20 +970,19 @@ function route() {
 // ---------------- init ----------------
 view.addEventListener('toggle', e => { if (e.target.open) hydratePhotos(e.target); }, true);
 view.addEventListener('click', e => {
+  const on = e.target.closest('[data-open-notes]');
+  if (on) {
+    e.preventDefault();
+    e.stopPropagation();
+    const id = on.getAttribute('data-open-notes');
+    const d = ENG && ENG.byId.get(id);
+    if (d) toggleNotesPop(d, on);
+    return;
+  }
   const cn = e.target.closest('[data-copy-notes]');
   if (cn) {
     e.preventDefault();
-    const id = cn.getAttribute('data-copy-notes');
-    const d = ENG && ENG.byId.get(id);
-    const items = (d && NOTES) ? matchNotes(NOTES, d) : [];
-    const text = items.map(it => [it.heading, it.text].filter(Boolean).join('\n')).join('\n\n');
-    (async () => {
-      try {
-        await navigator.clipboard.writeText(text);
-        cn.textContent = 'Copied';
-        setTimeout(() => { cn.textContent = 'Copy notes'; }, 1600);
-      } catch (_) { cn.textContent = 'Couldn’t copy'; }
-    })();
+    copyNotesFor(cn);
     return;
   }
   const bk = e.target.closest('[data-back]'); if (bk) { e.preventDefault(); if (NAVIDX > 0) history.back(); else location.replace(LAST_SEARCH); return; }
