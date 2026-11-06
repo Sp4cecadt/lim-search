@@ -174,10 +174,63 @@ function openAskSkynet(d) {
   setTimeout(goHttps, STANDALONE || IS_IOS ? 900 : 200);
 }
 
+const NOTES_ACCEPT = '.txt,.md,.markdown,.text,.rtf,.html,.htm,.pdf,.docx,text/plain,text/markdown,text/html,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+function cardFileActions(d) {
+  return `<div class="card-file-actions">
+    <p class="muted small">Two separate uploads — they do not overwrite each other. Updating the Line Inspection Manual refreshes this card’s usual information from that PDF, exactly as the app already does. The notes file only fills the Notes section.</p>
+    <label class="btn" for="card-pdf-${esc(d.id)}">📥 ${DATA ? 'Update line inspection manual' : 'Load line inspection manual'}</label>
+    <input id="card-pdf-${esc(d.id)}" class="js-card-pdf" type="file" accept="application/pdf,.pdf" hidden>
+    <label class="btn" for="card-notes-${esc(d.id)}">📥 ${NOTES ? 'Replace notes file' : 'Upload notes file'}</label>
+    <input id="card-notes-${esc(d.id)}" class="js-card-notes" type="file" accept="${NOTES_ACCEPT}" hidden>
+    <div class="js-update-prog"></div>
+  </div>`;
+}
+async function saveNotesFile(file) {
+  const parsed = await parseNotesFile(file);
+  await store.persist();
+  await store.set('defectNotes', parsed);
+  NOTES = parsed;
+  return parsed;
+}
+function afterNotesSaved(parsed) {
+  const n = (parsed.sections || []).length;
+  const msg = n
+    ? `✅ Loaded ${n} note group${n === 1 ? '' : 's'} from ${parsed.fileName}. This only fills the Notes section — the Line Inspection Manual is unchanged.`
+    : `Loaded ${parsed.fileName}, but no section headings were found. Use headings like “6.2 Standard Poles”. The Line Inspection Manual is unchanged.`;
+  if (location.hash.startsWith('#/manual')) renderManual(msg);
+  else { bg(msg); route(); }
+}
+function wireCardUploads(root = view) {
+  root.querySelectorAll('.js-card-pdf').forEach(inp => {
+    if (inp.dataset.wired === '1') return;
+    inp.dataset.wired = '1';
+    inp.addEventListener('change', e => {
+      const file = e.target.files && e.target.files[0];
+      e.target.value = '';
+      if (file) doUpdate(file);
+    });
+  });
+  root.querySelectorAll('.js-card-notes').forEach(inp => {
+    if (inp.dataset.wired === '1') return;
+    inp.dataset.wired = '1';
+    inp.addEventListener('change', async e => {
+      const file = e.target.files && e.target.files[0];
+      e.target.value = '';
+      if (!file) return;
+      try { afterNotesSaved(await saveNotesFile(file)); }
+      catch (err) {
+        console.warn('notes import', err);
+        const msg = 'Couldn’t read that notes file. Try saving it from the Windows Notes app as a .txt or .md file. The Line Inspection Manual was not changed.';
+        if (location.hash.startsWith('#/manual')) renderManual(msg);
+        else bg(msg);
+      }
+    });
+  });
+}
 function notesSection(d, open = false) {
   let inner;
   if (!NOTES || !NOTES.sections || !NOTES.sections.length) {
-    inner = `<p class="muted small">No notes file on this phone yet. Open Settings and upload the notes export you use when raising a defect. Information from the Line Inspection Manual on this card stays as it is.</p>`;
+    inner = `<p class="muted small">No notes file on this phone yet. Use “Upload notes file” on this card (or in Settings). That file only fills this Notes section — it does not change the Line Inspection Manual information on the card.</p>`;
   } else {
     const items = matchNotes(NOTES, d);
     if (!items.length) {
@@ -226,6 +279,7 @@ function defectCard(d, { open = false, terms = [] } = {}) {
     ${ex.length ? `<details class="phx" ${open ? 'open' : ''}><summary>${nPh ? '📷 ' : ''}Photo examples (${ex.length})</summary>${!PHOTOS.size ? `<div class="note small">The example photos aren’t on this phone yet. <a href="#/manual">Manual tab › Add photos</a></div>` : ''}${ex.map(e => `<div class="ex">${PHOTOS.has(e.key) ? `<button class="phb" data-ph="${e.key}" aria-label="Enlarge photo"><img data-phk="${e.key}" alt="Example photo from p.${e.p}"><span class="zoomi">⤢</span></button>` : ''}${hl(e.caption, terms)}<div>${e.tags.map(t => `<span class="tag ${t.k === 'Priority' && /z/i.test(t.v) ? 'zt' : ''}">${t.bfra ? esc(t.bfra) + ' ' : ''}${esc(t.k)}: ${esc(t.v)}</span>`).join('')} ${pageLink(e.p)}</div></div>`).join('')}</details>` : ''}
     ${d.summary ? `<details><summary>Section 5 summary table row</summary><div class="small muted">As printed in the condition summary table, ${pageLink(d.summary.p)}. Columns may run together.</div><dl class="kv"><dt>Quick code</dt><dd>${esc(d.summary.quickCode)}</dd><dt>Severity</dt><dd>${esc(d.summary.severity)}</dd></dl><div class="pre small">${hl(d.summary.details, terms)}</div></details>` : ''}
     ${d.kind === 'Summary table only' ? `<div class="note">There's no separate condition example page for this one. It's taken from the Section 5 summary table, ${pageLink(d.page)}, so check the page.</div>` : ''}
+    ${cardFileActions(d)}
     ${notesSection(d, open)}
     <div class="small muted" style="margin-top:8px">${refs.join(' · ')}</div>
   </article>`;
@@ -290,6 +344,7 @@ function renderSearch(q) {
   if (!h) h = `<div class="card">Nothing found for “${esc(q)}”. Try fewer or different words (e.g. “crossarm” instead of “x-arm brace rusted through”).</div>`;
   view.innerHTML = h + `<p class="muted small">${Math.round(performance.now() - t0)} ms · matched: ${r.concepts.map(c => esc(c[0])).join(', ')}</p>`;
   closeSecfolds();
+  wireCardUploads();
 }
 function zPanel() {
   const p = passage('priorityscale'), dl = passage('deadlines');
@@ -397,18 +452,10 @@ async function renderManual(msg = '') {
     const file = e.target.files && e.target.files[0];
     e.target.value = '';
     if (!file) return;
-    try {
-      const parsed = await parseNotesFile(file);
-      await store.persist();
-      await store.set('defectNotes', parsed);
-      NOTES = parsed;
-      const n = (parsed.sections || []).length;
-      renderManual(n
-        ? `✅ Loaded ${n} note group${n === 1 ? '' : 's'} from ${parsed.fileName}. Open a defect card from Search to see them in Notes.`
-        : `Loaded ${parsed.fileName}, but no section headings were found. Use headings like “6.2 Standard Poles” so notes can match cards.`);
-    } catch (err) {
+    try { afterNotesSaved(await saveNotesFile(file)); }
+    catch (err) {
       console.warn('notes import', err);
-      renderManual('Couldn’t read that notes file. Try saving it from the Windows Notes app as a .txt or .md file.');
+      renderManual('Couldn’t read that notes file. Try saving it from the Windows Notes app as a .txt or .md file. The Line Inspection Manual was not changed.');
     }
   });
   const wn = $('#wipenotes');
@@ -661,9 +708,11 @@ function diffSummary(oldD, newD) {
 let PHOTO_RUN = null, UPGRADING = false;
 const bg = t => { const e = $('#bgtask'); if (!e) return; e.hidden = !t; e.innerHTML = t || ''; };
 async function doUpdate(file, { fromStored = false } = {}) {
-  const prog = $('#prog');
+  const prog = $('#prog') || view.querySelector('.js-update-prog');
+  const showProg = html => { if (prog) prog.innerHTML = html; };
   PHOTO_RUN = null; // stop any photo run for the old manual
-  prog.innerHTML = `<p>Reading <b>${esc(file.name || 'stored PDF')}</b>…</p><progress id="pb" max="100" value="0"></progress><p id="pt" class="small muted"></p>`;
+  // Reads only the Line Inspection Manual PDF. Does not read or write the notes file.
+  showProg(`<p>Reading <b>${esc(file.name || 'stored PDF')}</b>…</p><progress id="pb" max="100" value="0"></progress><p id="pt" class="small muted"></p>`);
   let data, meta;
   try {
     await store.persist();
@@ -675,7 +724,7 @@ async function doUpdate(file, { fromStored = false } = {}) {
       else { pb.value = 95; pt.textContent = 'Finding defect cards, codes and priorities…'; }
     });
     const ok = data.defects.length >= 20;
-    if (!ok && !confirm(`Only ${data.defects.length} defect cards were recognised. The layout may have changed, so search would mostly use plain text. Save anyway?`)) { prog.innerHTML = '<div class="note">Cancelled. Your previous manual is unchanged.</div>'; return; }
+    if (!ok && !confirm(`Only ${data.defects.length} defect cards were recognised. The layout may have changed, so search would mostly use plain text. Save anyway?`)) { showProg('<div class="note">Cancelled. Your previous manual is unchanged.</div>'); return; }
     meta = { source: 'loaded on this phone', fileName: file.name || (META && META.fileName), fileSize: file.size, loadedAt: new Date().toISOString(), ms: Date.now() - t0 };
     const diff = fromStored ? '' : diffSummary(DATA, data);
     await store.set('manual', data); await store.set('meta', meta);
@@ -686,8 +735,13 @@ async function doUpdate(file, { fromStored = false } = {}) {
     setData(data, meta); PHMETA = await store.get('photoMeta');
     const done = `✅ Loaded ${esc(meta.fileName || '')} in ${Math.round(meta.ms / 1000)} s: ${data.defects.length} defect cards, ${data.quickCodeTable.length} quick codes, ${data.chunks.length} passages.${pdfMsg}${ok ? '' : ' ⚠️ Few cards were recognised, so search will mostly use plain text.'}${diff ? '<br><br>' + diff : ''}`;
     if (location.hash.startsWith('#/manual')) renderManual(done);
+    else { bg('✅ Line inspection manual updated. Card information comes from that file, exactly as before. Your notes file was not changed.'); route(); }
   } catch (e) {
-    console.error(e); prog.innerHTML = `<div class="note">Couldn’t read that PDF: ${esc(e.message || e)}. Your previous manual is unchanged.</div>`; return;
+    console.error(e);
+    const err = `Couldn’t read that PDF: ${esc(e.message || e)}. Your previous manual is unchanged.`;
+    if (prog) prog.innerHTML = `<div class="note">${err}</div>`;
+    else bg(err);
+    return;
   }
   await runPhotos(file);
 }
@@ -846,7 +900,7 @@ function route() {
   if (!h.startsWith('#/page/')) { $('#modal').hidden = true; $('#modal').innerHTML = ''; }
   let m;
   if ((m = h.match(/^#\/page\/(\d+)/))) return showPage(+m[1]);
-  if ((m = h.match(/^#\/d\/(\w+)/))) { const d = ENG && ENG.byId.get(m[1]); view.innerHTML = d ? `<a class="btn" href="#/search" data-back>‹ Back</a>${defectCard(d, { open: true, terms: lastQ ? lastQ.split(/\s+/) : [] })}` : ''; window.scrollTo(0, 0); hydratePhotos(); return; }
+  if ((m = h.match(/^#\/d\/(\w+)/))) { const d = ENG && ENG.byId.get(m[1]); view.innerHTML = d ? `<a class="btn" href="#/search" data-back>‹ Back</a>${defectCard(d, { open: true, terms: lastQ ? lastQ.split(/\s+/) : [] })}` : ''; window.scrollTo(0, 0); hydratePhotos(); wireCardUploads(); return; }
   window.scrollTo(0, 0);
   if (tab === 'browse') return renderBrowse();
   if (tab === 'cheat') return renderCheat();
