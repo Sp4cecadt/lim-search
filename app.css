@@ -366,6 +366,3 @@ table.scale td.l.sev-red,table.scale td.l.sev-grey,table.scale td.l.sev-other{-w
 a.row.dc-focus{position:relative;overflow:visible}
 a.row.dc-focus::before{content:'';position:absolute;left:4px;top:12px;width:4px;height:1.2em;border-radius:2px;background:#22c55e;pointer-events:none}
 .dc-focus::before{pointer-events:none}
-/* Docs: Inspection info is the default-highlighted section */
-.chips.docsubs [data-doc-sec="defect"]{position:relative;padding-left:20px}
-.chips.docsubs [data-doc-sec="defect"]::before{content:'';position:absolute;left:9px;top:50%;transform:translateY(-50%);width:4px;height:1.1em;border-radius:2px;background:#22c55e;pointer-events:none}

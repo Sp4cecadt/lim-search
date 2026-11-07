@@ -841,7 +841,7 @@ document.addEventListener('click', e => {
   if (e.target.closest('[data-doc-del]')) return;
   clearDocPreview();
 });
-let DOC_SEC = 'work'; // 'work' = manuals; 'defect' = inspection info; 'mdms' = MDMS files
+let DOC_SEC = 'defect'; // 'work' = manuals; 'defect' = inspection info; 'mdms' = MDMS files
 async function renderDocs(msg = '') {
   clearDocPreview();
   const all = (await store.docAll().catch(() => [])) || [];
