@@ -1292,7 +1292,11 @@ const SWIPE = initSwipe({ view, modal: $('#modal'), tabOf: h => tabOf(h || '#/se
 document.getElementById('tabs')?.addEventListener('click', e => {
   if (e.target.closest('a')) { try { document.getElementById('q').blur(); } catch (_) {} }
 });
-if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(() => {});
+if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+  let refreshing = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => { if (refreshing) return; refreshing = true; location.reload(); });
+  navigator.serviceWorker.register('sw.js').then(reg => { try { reg.update(); } catch (_) {} }).catch(() => {});
+}
 loadData().then(route).then(() => setTimeout(upgradeStoredManual, 1500));
 // Data read by an older extractor (< 1.2) has no severity cell colours. Re-read the stored PDF on the phone and
 // swap the new data in. Card ids and photo examples are unchanged by 1.2, so stored photos are kept.
@@ -1333,14 +1337,26 @@ window.__lim = { get navIdx() { return NAVIDX; }, swipe: SWIPE, askSkynetText, a
     const a = n && n.querySelector('.card-head h3 a[href^="#/d/"]');
     return a ? a.getAttribute('href').replace('#/d/', '') : null;
   };
+  const markTarget = tg => {
+    if (tg.matches('a.row')) { tg.classList.add('dc-focus'); return true; }
+    let n = tg.nextElementSibling; while (n && !n.matches('article.card.defect')) n = n.nextElementSibling;
+    const h = n && n.querySelector('.card-head h3'); if (h) { h.classList.add('dc-focus'); return true; }
+    return false;
+  };
   const markFocus = () => {
     view.querySelectorAll('.dc-focus').forEach(el => el.classList.remove('dc-focus'));
     if (!focusId) return;
-    const sel = `a[href="#/d/${CSS.escape(focusId)}"]`;
-    view.querySelectorAll(`article.card.defect .card-head h3 ${sel}`).forEach(a => a.closest('h3').classList.add('dc-focus'));
-    view.querySelectorAll(`a.row[href="#/d/${CSS.escape(focusId)}"] > span:first-child`).forEach(s => s.classList.add('dc-focus'));
+    // Search results: mark via the [data-dc] target for the focused defect.
+    const tg = [...view.querySelectorAll('[data-dc]')].find(x => idOf(x) === focusId);
+    if (tg && markTarget(tg)) return;
+    // Other views (e.g. #/d/<id> page, or that card elsewhere): first matching heading or row only.
+    const id = CSS.escape(focusId);
+    const a = view.querySelector(`article.card.defect .card-head h3 a[href="#/d/${id}"]`);
+    if (a) { a.closest('h3').classList.add('dc-focus'); return; }
+    const r = view.querySelector(`a.row[href="#/d/${id}"]`);
+    if (r) { r.classList.add('dc-focus'); return; }
     const m = (location.hash || '').match(/^#\/d\/(\w+)/);
-    if (m && m[1] === focusId) view.querySelectorAll('article.card.defect .card-head h3').forEach(h => h.classList.add('dc-focus'));
+    if (m && m[1] === focusId) { const h = view.querySelector('article.card.defect .card-head h3'); if (h) h.classList.add('dc-focus'); }
   };
   const IDLE = 5000;
   const btnEl = () => document.getElementById('cycle');
@@ -1405,10 +1421,6 @@ window.__lim = { get navIdx() { return NAVIDX; }, swipe: SWIPE, askSkynetText, a
     const off = (hdr ? hdr.getBoundingClientRect().bottom : 0) + 8;
     window.scrollTo({ top: ts[idx].getBoundingClientRect().top + window.scrollY - off, behavior: 'smooth' });
     focusId = idOf(ts[idx]); markFocus();
-    // belt-and-braces: mark the target itself too
-    const tg = ts[idx];
-    if (tg.matches('a.row')) { const s = tg.querySelector(':scope > span'); if (s) s.classList.add('dc-focus'); }
-    else { let n = tg.nextElementSibling; while (n && !n.matches('article.card.defect')) n = n.nextElementSibling; const h = n && n.querySelector('.card-head h3'); if (h) h.classList.add('dc-focus'); }
     btn.textContent = `${idx + 1} / ${n}`;
     btn.setAttribute('aria-label', `Next defect card, ${idx + 1} of ${n}`);
     btn.title = `Defect card ${idx + 1} of ${n}`;
