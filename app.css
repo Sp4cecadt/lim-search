@@ -362,3 +362,5 @@ table.scale td.l.sev-red,table.scale td.l.sev-grey,table.scale td.l.sev-other{-w
 .dc-focus::before{content:'';position:absolute;left:-9px;top:.12em;width:4px;height:1.1em;border-radius:2px;background:#22c55e}
 .defect-cards-heading-row .defect-cards-toggle{flex:1 1 0;min-width:0}
 .defect-card-tools-heading .btn-lim,.defect-card-tools-heading .btn-notes,.defect-card-tools-heading .btn-cycle{padding:6px 9px;font-size:14px}
+a.row{overflow:visible}
+a.row > span.dc-focus::before{left:-7px}

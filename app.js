@@ -1338,7 +1338,7 @@ window.__lim = { get navIdx() { return NAVIDX; }, swipe: SWIPE, askSkynetText, a
     if (!focusId) return;
     const sel = `a[href="#/d/${CSS.escape(focusId)}"]`;
     view.querySelectorAll(`article.card.defect .card-head h3 ${sel}`).forEach(a => a.closest('h3').classList.add('dc-focus'));
-    view.querySelectorAll(`a.row${sel} > span:first-child`).forEach(s => s.classList.add('dc-focus'));
+    view.querySelectorAll(`a.row[href="#/d/${CSS.escape(focusId)}"] > span:first-child`).forEach(s => s.classList.add('dc-focus'));
     const m = (location.hash || '').match(/^#\/d\/(\w+)/);
     if (m && m[1] === focusId) view.querySelectorAll('article.card.defect .card-head h3').forEach(h => h.classList.add('dc-focus'));
   };
@@ -1382,6 +1382,7 @@ window.__lim = { get navIdx() { return NAVIDX; }, swipe: SWIPE, askSkynetText, a
     idx = 0; lastRect = null; unpin();
     const ts = [...view.querySelectorAll('[data-dc]')];
     if (ts.length >= 2) focusId = idOf(ts[0]);
+    else if (!/^#\/(d|page)\//.test(location.hash || '') && curTab() === 'search') focusId = null;
     markFocus();
   }).observe(view, { childList: true });
   // Any screen interaction keeps it alive while pinned.
@@ -1404,6 +1405,10 @@ window.__lim = { get navIdx() { return NAVIDX; }, swipe: SWIPE, askSkynetText, a
     const off = (hdr ? hdr.getBoundingClientRect().bottom : 0) + 8;
     window.scrollTo({ top: ts[idx].getBoundingClientRect().top + window.scrollY - off, behavior: 'smooth' });
     focusId = idOf(ts[idx]); markFocus();
+    // belt-and-braces: mark the target itself too
+    const tg = ts[idx];
+    if (tg.matches('a.row')) { const s = tg.querySelector(':scope > span'); if (s) s.classList.add('dc-focus'); }
+    else { let n = tg.nextElementSibling; while (n && !n.matches('article.card.defect')) n = n.nextElementSibling; const h = n && n.querySelector('.card-head h3'); if (h) h.classList.add('dc-focus'); }
     btn.textContent = `${idx + 1} / ${n}`;
     btn.setAttribute('aria-label', `Next defect card, ${idx + 1} of ${n}`);
     btn.title = `Defect card ${idx + 1} of ${n}`;
