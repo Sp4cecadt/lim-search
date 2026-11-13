@@ -209,7 +209,7 @@ export function extractManual(rawPages, info = {}) {
       if (to > from || pn === d.p.n) endPage = pn;
       if (next && next.p.n === pn) break;
     }
-    const f = { sev: [], pri: [], cond: [], qc: [], det: [], aside: [] };
+    const f = { sev: [], pri: [], cond: [], qc: [], det: [], aside: [], qcnote: [] };
     let mode = null, si = 0;
     const scale = [];
     let lastLevel = null, group = null, indentBuf = [], centred = false, detFrom = -1, detTo = -1, twoCol = null, sideNote = [];
@@ -234,6 +234,8 @@ export function extractManual(rawPages, info = {}) {
       if (!mode) continue;
       // a signage panel printed below the quick codes is not a quick code
       if (mode === 'qc' && l.txt === 'Signage Identification') { mode = 'aside'; continue; }
+      // a "Note: …" printed under the quick codes is a note, not a code
+      if (mode === 'qc' && /^Note\b/i.test(l.txt) && f.qc.length) mode = 'qcnote';
       if (mode !== 'det') { if (l.txt) f[mode].push(lineTxt(l)); continue; }
       const joined = l.segs.map(s => s.s).join(' ');
       const isCaption = /\[\s*(Severity|Priority|Condition)\s*:/.test(joined) || l.segs.some(s => /^(H\/MBFRA|NBFRA)$/.test(s.s) && s.x > l.segs[0].x + 50) || /^Figure \d+/.test(l.txt);
@@ -392,7 +394,7 @@ export function extractManual(rawPages, info = {}) {
     const tables = detFrom >= 0 ? findTables(stream.slice(detFrom, detTo), P) : [];
     const aside = f.aside.length ? { title: 'Signage Identification', text: f.aside.join('\n') } : null; // panel heading as printed
     // Breakdown: the priority range, or the card's own details / chart saying it is a Breakdown
-    const bdTxt = [det, ...scale.map(s => s.text)].join('\n');
+    const bdTxt = [det, ...scale.map(s => s.text), ...f.qcnote].join('\n');
     const bdDet = /\b(it is a|is a|as a|be a|considered a)\s+['‘’"“]?breakdown\b|\bbreakdown in all areas\b/i.test(bdTxt.replace(/\bnot (a|as a) breakdown\b/gi, ''));
     let kind = d.kind;
     if (kind === 'Defect' && !qcs.length && !sevText && !priText) kind = /Record Condition Only/i.test(f.cond.join(' ')) ? 'Condition only' : 'Guidance';
@@ -408,7 +410,7 @@ export function extractManual(rawPages, info = {}) {
       breakdown: /Breakdown/i.test(priText) || bdDet,
       breakdownFrom: !/Breakdown/i.test(priText) && bdDet ? 'details' : undefined,
       quickCodes: qcs, details: det, scale, examples: ex,
-      ...(tables.length ? { tables } : {}), ...(aside ? { aside } : {}),
+      ...(tables.length ? { tables } : {}), ...(aside ? { aside } : {}), ...(f.qcnote.length ? { quickCodeNote: f.qcnote.join(' ').replace(/\s+/g, ' ').trim() } : {}),
     });
   });
   // ---------- quick code reference table (14.2) ----------
@@ -428,6 +430,13 @@ export function extractManual(rawPages, info = {}) {
     else out.push({ id: 'd' + (out.length + 1), num: null, title: r.title, kind: 'Summary table only', section: r.section || '', sectionTitle: (toc.find(t => t.num === r.section) || {}).title || '',
       page: r.p, pageLabel: P(r.p).label, endPage: r.p, severityRange: r.severity || null, severityByBfra: null, priorityRange: null, priorityByBfra: null, conditionRange: null,
       zCode: /Z Code/i.test(r.details), breakdown: /Breakdown/i.test(r.details), quickCodes: r.quickCode ? [{ group: '', code: r.quickCode, raw: true }] : [], details: r.details, scale: [], examples: [], summaryPage: r.p });
+  }
+  // a Section 5 row whose item also has its own page elsewhere (a title line followed by "Separately Report" / "Details"): link that page
+  for (const d of out) {
+    if (d.kind !== 'Summary table only') continue;
+    const nt = norm(d.title);
+    const own = pages.find((pg, i) => !(pageSec[i] && pageSec[i].num === '5') && pg.lines.some((l, k) => l.segs.length === 1 && norm(l.txt) === nt && pg.lines.slice(k + 1, k + 4).some(x => /^(Separately Report|Details|Record Condition Only)$/.test(x.txt))));
+    if (own) { d.page = own.n; d.pageLabel = own.label; d.endPage = own.n; d.ownPage = own.n; }
   }
   // ---------- condition-summary table pages (section 5) that mention each defect ----------
   const summaryPages = pages.filter((p, i) => pageSec[i] && pageSec[i].num === '5');
