@@ -155,7 +155,7 @@ function askSkynetText(d) {
     if (bits.length) t += ` Priority: ${bits.join('; ')}.`;
     t += ' What should I check and how should I record it?';
   } else {
-    t = 'Help me with the Line Inspection Manual searching defects, priorities (Z Code / Breakdown), compare photo/s to Lim photo/s and give opinion based on the LIM and relevent docs uploaded to LIM Search app. After giving a response, give a brief recap that glancable on key points like defect name, severity, priority, coding. Send the recap in a separate chat bubble.';
+    t = 'Help me with the Line Inspection Manual searching defects, priorities (Z Code / Breakdown), compare photo/s to Lim photo/s and give opinion based on the LIM and relevent docs uploaded to LIM Search app. After giving a response, send a compact at-a-glance recap in a separate chat bubble, one short dot point per field with bold labels and no full sentences: defect name + LIM ref (section, printed page); severity; priority (Z Code / Breakdown); coding (quick code / Blueworx); long text (one line); don\'t record if; upgrade if; downgrade if. Drop any field that doesn\'t apply.';
   }
   t = t.replace(/\s+/g, ' ').trim();
   return t.length > 1000 ? t.slice(0, 997) + '…' : t;
