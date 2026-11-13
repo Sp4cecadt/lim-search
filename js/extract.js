@@ -1,7 +1,7 @@
 // Shared extraction logic: used by the box build (Node) and the in-app "Update manual" (browser).
 // Input: pages from layoutPage(); output: structured manual data. Never invents content:
 // every field is copied from the page text, with its PDF page number.
-export const EXTRACTOR_VERSION = '1.2'; // 1.2: severity cell fill colours (scale[].c)
+export const EXTRACTOR_VERSION = '1.3'; // 1.2: severity cell fill colours (scale[].c); 1.3: LIM audit fixes (tag columns, merged cells, two-column charts, tables, Breakdown sources, body-heading TOC)
 import { colourAt } from './fills.js';
 
 const FOOT = /This document is not to be copied|©\s*SA Power Networks|^Page \d+ of \d+$|^\.$|^express permission/;
@@ -150,6 +150,23 @@ export function extractManual(rawPages, info = {}) {
     const m = l.segs.length === 1 && l.txt.match(/^(\d{1,2}\.\d{1,2})\.?\s+([A-Z][^.]{2,60})$/);
     if (m && (m[2].match(/\(/g) || []).length === (m[2].match(/\)/g) || []).length && !(p.header == null && /^\d+\.?\s/.test(l.txt) && p.lines.length > 40)) heads.push({ p: p.n, k, num: m[1], title: m[2].trim() });
   });
+  // sections whose running page header is wrong in the manual (e.g. 10.7, 12.7) only exist as body headings: add them to the TOC
+  {
+    const have = new Set(toc.map(t => t.num)), tops = new Set(toc.map(t => t.num.split('.')[0]));
+    const add = [];
+    const topOf = n => (pageSec[n - 1] ? pageSec[n - 1].num.split('.')[0] : null);
+    const lastOfTop = t => { let z = 0; pageSec.forEach((x, i) => { if (x && x.num.split('.')[0] === t) z = i + 1; }); return z; };
+    for (const h of heads) if (!have.has(h.num) && tops.has(h.num.split('.')[0]) && topOf(h.p) === h.num.split('.')[0] && !add.some(a => a.num === h.num)) add.push({ num: h.num, title: h.title, from: h.p, to: h.p, bodyHeading: true });
+    const cmpNum = (a, b) => { const A = a.split('.').map(Number), B = b.split('.').map(Number); for (let i = 0; i < Math.max(A.length, B.length); i++) { const d = (A[i] ?? -1) - (B[i] ?? -1); if (d) return d; } return 0; };
+    for (const a of add) {
+      // runs until the next body heading of the same level
+      const nx = heads.find(x => (x.p > a.from) && x.num !== a.num && x.num.split('.').length === a.num.split('.').length && cmpNum(x.num, a.num) > 0);
+      a.to = Math.min(nx ? Math.max(a.from, nx.p - (nx.k > 3 ? 0 : 1)) : a.from, Math.max(a.from, lastOfTop(a.num.split('.')[0])));
+      let at = toc.findIndex(t => /\./.test(t.num) && t.num.split('.')[0] === a.num.split('.')[0] && cmpNum(t.num, a.num) > 0);
+      if (at < 0) { at = toc.length; for (let i = toc.length - 1; i >= 0; i--) if (toc[i].num.split('.')[0] === a.num.split('.')[0]) { at = i + 1; break; } }
+      toc.splice(at, 0, a);
+    }
+  }
   for (const d of defects) {
     let h = null;
     for (const x of heads) { if (x.p < d.p.n || (x.p === d.p.n && x.k < d.start)) h = x; else break; }
@@ -192,10 +209,14 @@ export function extractManual(rawPages, info = {}) {
       if (to > from || pn === d.p.n) endPage = pn;
       if (next && next.p.n === pn) break;
     }
-    const f = { sev: [], pri: [], cond: [], qc: [], det: [] };
+    const f = { sev: [], pri: [], cond: [], qc: [], det: [], aside: [] };
     let mode = null, si = 0;
     const scale = [];
-    let lastLevel = null, group = null, indentBuf = [], centred = false;
+    let lastLevel = null, group = null, indentBuf = [], centred = false, detFrom = -1, detTo = -1, twoCol = null, sideNote = [];
+    const LEVEL_WORD = /^(Extreme|Very High|High|Moderate|Low)$/;
+    const isBare = l => l && l.segs && l.segs.length === 1 && LEVEL_WORD.test(l.segs[0].s) && l.segs[0].x < P(l.pn).w * 0.17;
+    const isCap = l => /\[\s*(Severity|Priority|Condition)\s*:/.test(l.segs.map(s => s.s).join(' ')) || l.segs.some(s => /^(H\/MBFRA|NBFRA)$/.test(s.s) && s.x > l.segs[0].x + 50) || /^Figure \d+/.test(l.txt);
+    const flushTwoCol = () => { if (!twoCol) return; for (const c of twoCol.cols) scale.push(...c.rows); twoCol = null; lastLevel = null; };
     // A line ending in ':' is a chart heading unless it reads as a sentence lead-in ("It is …:", "If …:", "… as below:")
     // or is the wrapped last line of a longer sentence.
     const proseLabel = (l, si) => { if (/^(it is|if|when|where|note|determine|for details)\b|\b(below|follows|if)\s*:$/i.test(l.txt)) return true;
@@ -209,16 +230,91 @@ export function extractManual(rawPages, info = {}) {
       if (l.txt === 'Defect Condition Range') { mode = 'cond'; continue; }
       if (l.txt === 'Record Condition Only') { f.cond.push(l.txt); continue; }
       if (l.txt === 'Quick Code') { mode = 'qc'; continue; }
-      if (l.txt === 'Details') { mode = 'det'; continue; }
+      if (l.txt === 'Details') { mode = 'det'; if (detFrom < 0) detFrom = si + 1; continue; }
       if (!mode) continue;
+      // a signage panel printed below the quick codes is not a quick code
+      if (mode === 'qc' && l.txt === 'Signage Identification') { mode = 'aside'; continue; }
       if (mode !== 'det') { if (l.txt) f[mode].push(lineTxt(l)); continue; }
       const joined = l.segs.map(s => s.s).join(' ');
       const isCaption = /\[\s*(Severity|Priority|Condition)\s*:/.test(joined) || l.segs.some(s => /^(H\/MBFRA|NBFRA)$/.test(s.s) && s.x > l.segs[0].x + 50) || /^Figure \d+/.test(l.txt);
       if (isCaption) break;
+      const W = P(l.pn).w;
+      // two-column chart (column headings over two text columns beside one level column): one row per column, grouped under its heading
+      if (twoCol) {
+        if (!l.txt) continue;
+        const a0 = l.segs[0], alv = a0.s.match(LEVEL_RE), aEdge = a0.x < W * 0.17;
+        const near = x => { let bi = 0; twoCol.xs.forEach((cx, i) => { if (Math.abs(cx - x) < Math.abs(twoCol.xs[bi] - x)) bi = i; }); return bi; };
+        if (alv && aEdge && !alv[2]) { const seen = new Set(); for (const sg of l.segs.slice(1)) { const ci = near(sg.x); const c = twoCol.cols[ci]; if (seen.has(ci)) c.rows[c.rows.length - 1].text += ' ' + sg.s; else c.rows.push({ level: alv[1], text: sg.s, group: c.h, p: l.pn, c: cellCol(l) }); seen.add(ci); } continue; }
+        if (!aEdge) { for (const sg of l.segs) { const c = twoCol.cols[near(sg.x)]; if (c.rows.length) c.rows[c.rows.length - 1].text += ' ' + sg.s; } continue; }
+        flushTwoCol();
+      }
+      if (l.txt && l.segs.length >= 2 && l.segs[0].x >= W * 0.17 && !/[\[:]/.test(l.txt) && !LEVEL_RE.test(l.segs[0].s)) {
+        let j = si + 1; while (j < stream.length && stream[j].segs && !stream[j].txt) j++;
+        const nx = stream[j];
+        if (nx && nx.segs && nx.pn === l.pn && nx.segs.length === l.segs.length + 1 && LEVEL_RE.test(nx.segs[0].s) && nx.segs[0].x < W * 0.17 && l.segs.every((sg, i) => Math.abs(nx.segs[i + 1].x - sg.x) < 20)) {
+          twoCol = { xs: l.segs.map(sg => sg.x), cols: l.segs.map(sg => ({ h: sg.s, rows: [] })) }; lastLevel = null; indentBuf = []; continue;
+        }
+      }
       if (!l.txt) { indentBuf = []; if (!lastLevel) f.det.push(''); lastLevel = null; continue; }
       const s0 = l.segs[0];
       const lv = s0.s.match(LEVEL_RE);
-      const leftEdge = s0.x < P(l.pn).w * 0.17;
+      const leftEdge = s0.x < W * 0.17;
+      // merged cell: one text block printed beside several level labels that have no text of their own
+      // (one table cell spanning several level rows). Applies the text to every level it spans.
+      if (isBare(l) && !indentBuf.length) {
+        const items = []; let j = si;
+        for (; j < stream.length; j++) {
+          const x = stream[j];
+          if (x.pageBreak || x.pn !== l.pn) break;
+          if (!x.txt) continue;
+          if (isBare(x)) { items.push({ j, bare: true, l: x }); continue; }
+          if (x.segs[0].x >= W * 0.17 && !isCap(x)) { items.push({ j, bare: false, l: x }); continue; }
+          break;
+        }
+        while (items.length && !items[items.length - 1].bare) items.pop();
+        const labs = items.filter(x => x.bare), txts = items.filter(x => !x.bare);
+        const prev = (() => { for (let k = si - 1; k >= 0; k--) { const x = stream[k]; if (x.pageBreak) return null; if (x.txt) return x; } return null; })();
+        const prevIndented = prev && prev.pn === l.pn && prev.segs[0].x >= W * 0.17 && Math.abs(l.y - prev.y) < 30;
+        if (labs.length >= 2 && txts.length && !prevIndented) {
+          const blocks = [];
+          for (const t of txts) { const b = blocks[blocks.length - 1]; if (b && t.j === b.last.j + 1 + (stream.slice(b.last.j + 1, t.j).filter(x => !x.txt).length) && stream.slice(b.last.j + 1, t.j).every(x => !x.txt || !isBare(x)) && t.l.y - b.last.l.y < 16) { b.lines.push(t.l); b.last = t; } else blocks.push({ lines: [t.l], last: t }); }
+          const ly = labs.map(x => x.l.y);
+          const nearestOf = blocks.map(b => { const c = (b.lines[0].y + b.lines[b.lines.length - 1].y) / 2; b.c = c; let n = 0; ly.forEach((y, i) => { if (Math.abs(y - c) < Math.abs(ly[n] - c)) n = i; }); return n; });
+          const cover = new Array(labs.length).fill(null); let ok = true;
+          blocks.forEach((b, bi) => {
+            const n = nearestOf[bi]; let best = null;
+            for (let a = 0; a <= n; a++) for (let z = n; z < labs.length; z++) {
+              let bad = false; for (let q = a; q <= z; q++) if (cover[q] || nearestOf.some((m, oi) => oi !== bi && m === q)) bad = true;
+              if (bad) continue;
+              const mean = ly.slice(a, z + 1).reduce((x, y) => x + y, 0) / (z - a + 1);
+              if (Math.abs(mean - b.c) <= 5 && (!best || z - a > best[1] - best[0])) best = [a, z];
+            }
+            if (!best) { ok = false; return; }
+            for (let q = best[0]; q <= best[1]; q++) cover[q] = { b, span: best[1] - best[0] + 1 };
+          });
+          if (ok) {
+            labs.forEach((x, q) => { const cv = cover[q]; if (!cv) return; const r = { level: x.l.segs[0].s, text: cv.b.lines.map(lineTxt).join(' '), group, p: x.l.pn, c: cellCol(x.l) }; if (cv.span > 1) r.merged = cv.span; scale.push(r); });
+            si = items[items.length - 1].j; lastLevel = null; indentBuf = []; continue;
+          }
+        }
+      }
+      // a side note printed to the right of a chart row, starting just above the row's baseline
+      if (!leftEdge && s0.x >= W * 0.6 && !lastLevel) {
+        let j = si + 1; while (j < stream.length && stream[j].segs && !stream[j].txt) j++;
+        const nx = stream[j];
+        if (nx && nx.txt && nx.pn === l.pn && nx.y - l.y < 12 && nx.segs[0].x < W * 0.17 && LEVEL_RE.test(nx.segs[0].s) && nx.segs.every(sg => (sg.x2 || sg.x) < s0.x - 20)) { sideNote.push(joined); continue; }
+      }
+      // table header line(s) printed directly above a chart's rows, without a trailing colon
+      if (scale.length && leftEdge && !lv && l.txt.length < 70 && !/[.,;:\]]$/.test(l.txt) && !/\[/.test(l.txt)) {
+        const hdr = [l]; let j = si + 1;
+        while (j < stream.length && stream[j].txt && stream[j].pn === l.pn && !LEVEL_RE.test(stream[j].segs[0].s) && stream[j].y - hdr[hdr.length - 1].y < 16 && hdr.length < 3) { hdr.push(stream[j]); j++; }
+        const nx = stream[j];
+        if (nx && nx.txt && nx.pn === l.pn && nx.y - hdr[hdr.length - 1].y < 16 && LEVEL_RE.test(nx.segs[0].s) && nx.segs[0].x < W * 0.17 && hdr.every(h => h.segs[0].x < W * 0.17 && !/[.,;:]$/.test(h.txt))) {
+          const cols = []; for (const h of hdr) for (const sg of h.segs) { let c = cols.find(c => Math.abs(c.x - sg.x) < 15); if (!c) { c = { x: sg.x, t: [] }; cols.push(c); } c.t.push(sg.s); }
+          cols.sort((a, b) => a.x - b.x);
+          group = cols.map(c => c.t.join(' ')).join(' | '); lastLevel = null; indentBuf = []; si = j - 1; continue;
+        }
+      }
       if (lastLevel && lastLevel.pendingNum && !lastLevel.level && lv && leftEdge) {
         lastLevel.level = lv[1]; lastLevel.c = cellCol(l) || lastLevel.c; delete lastLevel.pendingNum;
         const rest = [lv[2], ...l.segs.slice(1).map(s => s.s)].filter(Boolean).join(' ');
@@ -230,7 +326,7 @@ export function extractManual(rawPages, info = {}) {
         scale.push({ level: lv[1], text: pulled.join(' '), group, p: l.pn, c: cellCol(l) }); lastLevel = scale[scale.length - 1]; indentBuf = []; centred = true; continue;
       }
       if (lv && leftEdge && (l.segs.length >= 2 || lv[2] || /^\d\s/.test(s0.s)) && !/[.]$/.test(lv[2] || '') && !(lv[2] && !/^\d\s/.test(s0.s) && (l.segs.length === 1 || PROSE_RE.test(lv[2])))) {
-        const rest = [lv[2], ...l.segs.slice(1).map(s => s.s)].filter(Boolean).join(' ');
+        const rest = [lv[2], ...l.segs.slice(1).map(s => s.s), ...sideNote].filter(Boolean).join(' '); sideNote = [];
         scale.push({ level: lv[1], text: rest, group, p: l.pn, c: cellCol(l) }); lastLevel = scale[scale.length - 1];
         continue;
       }
@@ -246,9 +342,16 @@ export function extractManual(rawPages, info = {}) {
       if (scale.length && /:$/.test(l.txt) && l.txt.length < 70 && !proseLabel(l, si)) { group = l.txt.replace(/:$/, ''); lastLevel = null; continue; }
       lastLevel = null;
       if (!leftEdge) indentBuf.push(f.det.length); else indentBuf = [];
-      if (/:$/.test(l.txt) && l.txt.length < 70 && !proseLabel(l, si) && stream.slice(si + 1, si + 7).some(x => x.segs && x.segs[0] && x.segs.length >= 2 && LEVEL_RE.test(x.segs[0].s))) { group = l.txt.replace(/:$/, ''); f.det.push(lineTxt(l)); continue; }
+      if (/:$/.test(l.txt) && l.txt.length < 70 && !proseLabel(l, si) && (() => { // chart heading: a severity chart follows before the next heading
+        const titleLike = l.txt.replace(/:$/, '').split(/\s+/).every(w => /^[A-Z0-9&(]/.test(w) || /^(and|or|of|to|for|the|in|on|with)$/.test(w));
+        for (let j = si + 1; j < Math.min(stream.length, si + (titleLike ? 13 : 7)); j++) { const x = stream[j]; if (x.pageBreak) return false; if (!x.segs || !x.segs[0]) continue;
+          if (x.segs.length >= 2 && LEVEL_RE.test(x.segs[0].s) && x.segs[0].x < P(x.pn).w * 0.17) return true;
+          if (/:$/.test(x.txt) && x.txt.length < 70 && !proseLabel(x, j)) return false; if (isCap(x)) return false; }
+        return false; })()) { group = l.txt.replace(/:$/, ''); f.det.push(lineTxt(l)); continue; }
       f.det.push(lineTxt(l));
     }
+    flushTwoCol();
+    detTo = si;
     for (const sc of scale) { sc.z = sc.level === 'Z Code' || /\[[^\]]*Z Code[^\]]*\]/i.test(sc.text); sc.text = sc.text.replace(/\s+/g, ' ').trim(); delete sc.pendingNum; if (!sc.group) delete sc.group; if (!sc.c) delete sc.c; }
     // quick codes
     const qcs = []; let grp = '';
@@ -270,7 +373,7 @@ export function extractManual(rawPages, info = {}) {
       if (l.txt && /:$/.test(l.txt) && l.txt.length < 60 && l.segs.length === 1) { g2 = l.txt.replace(/:$/, ''); }
       const s0 = l.segs[0], lv = s0 && s0.s.match(LEVEL_RE);
       if (lv && l.segs.length >= 2 && !lv[2] && s0.x < P(l.pn).w * 0.17 && !/\[\s*(Severity|Priority|Condition)\s*:/.test(l.txt)) {
-        last2 = { level: lv[1], text: l.segs.slice(1).map(x => x.s).join(' '), group: g2 || 'Further chart', p: l.pn, c: cellCol(l) }; scale.push(last2); continue;
+        last2 = { level: lv[1], text: l.segs.slice(1).map(x => x.s).join(' '), group: g2 || 'Further chart (no heading printed)', p: l.pn, c: cellCol(l) }; scale.push(last2); continue;
       }
       if (last2 && l.txt && s0.x >= P(l.pn).w * 0.17 && !/\[/.test(l.txt)) { last2.text += ' ' + l.segs.map(x => x.s).join(' '); continue; }
       if (!l.txt) last2 = null;
@@ -286,6 +389,11 @@ export function extractManual(rawPages, info = {}) {
       return Object.keys(r).length ? r : null;
     };
     const det = f.det.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+    const tables = detFrom >= 0 ? findTables(stream.slice(detFrom, detTo), P) : [];
+    const aside = f.aside.length ? { title: 'Signage Identification', text: f.aside.join('\n') } : null; // panel heading as printed
+    // Breakdown: the priority range, or the card's own details / chart saying it is a Breakdown
+    const bdTxt = [det, ...scale.map(s => s.text)].join('\n');
+    const bdDet = /\b(it is a|is a|as a|be a|considered a)\s+['‘’"“]?breakdown\b|\bbreakdown in all areas\b/i.test(bdTxt.replace(/\bnot (a|as a) breakdown\b/gi, ''));
     let kind = d.kind;
     if (kind === 'Defect' && !qcs.length && !sevText && !priText) kind = /Record Condition Only/i.test(f.cond.join(' ')) ? 'Condition only' : 'Guidance';
     out.push({
@@ -297,8 +405,10 @@ export function extractManual(rawPages, info = {}) {
       priorityRange: priText || null, priorityByBfra: byBfra(priText),
       conditionRange: [d.label, ...f.cond].filter(Boolean).join('\n') || null,
       zCode: /Z\s*Code/i.test(priText) || scale.some(s => s.z),
-      breakdown: /Breakdown/i.test(priText),
+      breakdown: /Breakdown/i.test(priText) || bdDet,
+      breakdownFrom: !/Breakdown/i.test(priText) && bdDet ? 'details' : undefined,
       quickCodes: qcs, details: det, scale, examples: ex,
+      ...(tables.length ? { tables } : {}), ...(aside ? { aside } : {}),
     });
   });
   // ---------- quick code reference table (14.2) ----------
@@ -307,7 +417,8 @@ export function extractManual(rawPages, info = {}) {
   const zIndex = parseIndex(pages, /APPENDIX 1\s*[–-]\s*Z CODE/i, /APPENDIX 2/i, out);
   const breakdownIndex = parseIndex(pages, /APPENDIX 3\s*[–-]\s*BREAKDOWN/i, /APPENDIX 4/i, out);
   for (const it of zIndex.items) if (it.defect) { const d = out.find(x => x.id === it.defect); d.inZIndex = it.page; }
-  for (const it of breakdownIndex.items) if (it.defect) { const d = out.find(x => x.id === it.defect); d.inBreakdownIndex = it.page; }
+  for (const it of breakdownIndex.items) if (it.defect) { const d = out.find(x => x.id === it.defect); d.inBreakdownIndex = it.page; if (!d.breakdown) { d.breakdown = true; d.breakdownFrom = 'index'; } }
+  for (const d of out) if (d.breakdownFrom === undefined) delete d.breakdownFrom;
   // ---------- Section 5 condition summary table: rows segmented by the Defect Description column ----------
   const summaryRows = parseSummaryTable(pages, pageSec, toc);
   for (const r of summaryRows) {
@@ -347,35 +458,129 @@ export function extractManual(rawPages, info = {}) {
   return { meta, toc, defects: out, quickCodeTable, zIndex, breakdownIndex, passages, chunks };
 }
 
+// Area / voltage column headings printed above two columns of tags (e.g. "H/MBFRA" | "NBFRA", "SWER Areas" | "MEN/CMEN Areas")
+const BF_HDR = /^(H\/MBFRA|H\/MBFA|HBFRA|MBFRA|NBFRA|H\/M\/NBFRA|SWER Areas|MEN\/CMEN Areas|11kV or 19kV|33kV|Within 5kms coast|Outside 5kms coast)$/;
 function collectExamples(pg, from, to, ex) {
   const W = pg.w;
   let group = [];
   const flush = () => {
     if (!group.length) return;
-    const cap = [], cols = [];
-    for (const l of group) for (const s of l.segs) {
-      if (s.x < W * 0.45) cap.push(s.s);
-      else {
-        let c = cols.find(c => Math.abs(c.x - s.x) < W * 0.1);
-        if (!c) { c = { x: s.x, parts: [] }; cols.push(c); }
-        c.parts.push(s.s);
+    // join a tag split over two lines ("[Severity: Very" / "High]") within a column
+    const L = group.map(l => ({ ...l, segs: l.segs.map(s => ({ ...s })) }));
+    for (let i = 0; i < L.length - 1; i++) for (const s of L[i].segs) {
+      if ((s.s.match(/\[/g) || []).length <= (s.s.match(/\]/g) || []).length) continue;
+      const nx = L[i + 1].segs.find(t => Math.abs(t.x - s.x) < W * 0.12 && /^[^\[]*\]/.test(t.s));
+      if (nx) { const m = nx.s.match(/^[^\[]*\]/)[0]; s.s += ' ' + m; s.x2 = Math.max(s.x2 || s.x, s.x + 1); nx.s = nx.s.slice(m.length).trim(); }
+    }
+    const cap = [], hdrs = [], pieces = []; let li = 0;
+    for (const l of L) { li++; for (const s of l.segs) {
+      if (!s.s) continue;
+      const tagMs = []; let m; TAG_RE.lastIndex = 0; while ((m = TAG_RE.exec(s.s))) tagMs.push({ i: m.index, len: m[0].length, k: m[1], v: m[2].replace(/\s+/g, ' ') });
+      const rest = s.s.replace(TAG_RE, ' ').replace(/\s+/g, ' ').trim();
+      const x2 = s.x2 && s.x2 > s.x ? s.x2 : s.x + s.s.length * 4.5, cw = (x2 - s.x) / Math.max(1, s.s.length);
+      if (!tagMs.length) {
+        if (BF_HDR.test(rest)) hdrs.push({ t: rest, c: (s.x + x2) / 2, li });
+        else if (s.x < W * 0.45) cap.push(s.s);
+        else pieces.push({ text: s.s, x: s.x, li, seg: s }); // old behaviour: right-half text joins its column
+        continue;
+      }
+      const pre = s.s.split('[')[0].trim();
+      let own = null;
+      if (pre && BF_HDR.test(pre)) own = pre;
+      else if (pre && s.x < W * 0.45) cap.push(rest);
+      else if (pre) pieces.push({ text: s.s.split('[')[0], x: s.x, li, seg: s });
+      const post = s.s.slice(s.s.lastIndexOf(']') + 1).trim(); // text after the last tag in a caption run stays in the caption
+      if (post && s.x < W * 0.45 && !own && pre) { /* already in rest */ } else if (post && s.x < W * 0.45) cap.push(post);
+      for (const t of tagMs) pieces.push({ tag: { k: t.k, v: t.v }, own, c: s.x + cw * (t.i + t.len / 2), x: s.x, li, seg: s });
+    } }
+    const tags = [];
+    if (hdrs.length) {
+      // tags go to the nearest column heading by centre; a heading printed in the same run binds its own tags
+      const H = []; for (const h of hdrs) if (!H.some(x => x.t === h.t && Math.abs(x.c - h.c) < W * 0.05)) H.push(h);
+      H.sort((a, b) => a.c - b.c);
+      const out = [];
+      for (const p of pieces) { if (!p.tag) continue;
+        let bf = p.own; let col = p.own ? -1 : 0;
+        if (!bf) { let bi = 0; H.forEach((h, i) => { if (Math.abs(h.c - p.c) < Math.abs(H[bi].c - p.c)) bi = i; }); bf = H[bi].t; col = bi; }
+        out.push({ ...p.tag, bfra: bf, _x: p.own ? p.x : H[col].c, _li: p.li });
+      }
+      out.sort((a, b) => a._x - b._x || a._li - b._li);
+      for (const t of out) { delete t._x; delete t._li; tags.push(t); }
+    } else {
+      // no headings: columns by run start, as printed
+      const cols = [];
+      for (const p of pieces) { let c = cols.find(c => Math.abs(c.x - p.x) < W * 0.1); if (!c) { c = { x: p.x, ps: [] }; cols.push(c); } c.ps.push(p); }
+      cols.sort((a, b) => a.x - b.x);
+      for (const c of cols) {
+        const pre = c.ps.map(p => p.tag ? (p.own || '') : p.text).join(' ').split('[')[0].trim();
+        const own = c.ps.find(p => p.own); const bf = own ? own.own : (pre && pre.length < 40 && !c.ps[0].tag ? pre : null);
+        for (const p of c.ps) if (p.tag) tags.push({ ...p.tag, bfra: p.own || bf });
       }
     }
-    cols.sort((a, b) => a.x - b.x);
-    const tags = [];
-    for (const c of cols) {
-      const txt = c.parts.join(' ');
-      const pre = txt.split('[')[0].trim();
-      const bf = pre && pre.length < 40 ? pre : null;
-      let m; TAG_RE.lastIndex = 0;
-      while ((m = TAG_RE.exec(txt))) tags.push({ k: m[1], v: m[2].replace(/\s+/g, ' '), bfra: bf });
-    }
     const caption = cap.join(' ').replace(/\s+/g, ' ').trim();
-    if (tags.length || /^Figure/.test(caption)) ex.push({ p: pg.n, caption, tags, y0: group[0].y, y1: group[group.length - 1].y }); // y0/y1: caption top/bottom baselines (pt, top-down), used to map photos
+    if (tags.length || caption) local.push({ p: pg.n, caption, tags, y0: group[0].y, y1: group[group.length - 1].y }); // y0/y1: caption top/bottom baselines (pt, top-down), used to map photos
     group = [];
   };
+  const local = [];
   for (let k = from; k < to; k++) { const l = pg.lines[k]; if (!l || !l.txt) flush(); else group.push(l); }
   flush();
+  // a tag block printed on its own just above its caption (no tags in the caption block) is one example
+  for (let i = 0; i < local.length - 1; i++) {
+    const a = local[i], b = local[i + 1];
+    if (a.tags.length && !a.caption && b.caption && !b.tags.length && !/^Figure/.test(b.caption) && b.y0 - a.y1 < 40) { a.caption = b.caption; a.y1 = b.y1; local.splice(i + 1, 1); }
+  }
+  // …or just below its caption
+  for (let i = 1; i < local.length; i++) {
+    const a = local[i - 1], b = local[i];
+    if (b.tags.length && !b.caption && a.caption && !a.tags.length && !/^Figure/.test(a.caption) && b.y0 - a.y1 < 40) { a.tags = b.tags; a.y1 = b.y1; local.splice(i, 1); i--; }
+  }
+  for (const e of local) if (e.tags.length || /^Figure/.test(e.caption)) ex.push(e);
+}
+
+// Grid tables inside a card's Details (e.g. a severity matrix by area or voltage). Kept as printed: one text row per
+// printed line, columns spaced by their position on the page. Lines that are severity chart rows are not tables.
+function findTables(lines, P) {
+  const out = [];
+  const isLv = l => l.segs[0].x < P(l.pn).w * 0.17 && LEVEL_RE.test(l.segs[0].s);
+  const isGrid = l => l.segs && l.segs.length >= 2 && !isLv(l) && !/^(•|o|[-–]|\(?[a-z0-9]{1,2}[.)])$/i.test(l.segs[0].s) && !/\[\s*(Severity|Priority|Condition)\s*:/.test(l.txt);
+  let i = 0;
+  while (i < lines.length) {
+    const l = lines[i];
+    if (l.pageBreak || !l.txt || !isGrid(l)) { i++; continue; }
+    let a = i; // stacked header words printed above the first grid row
+    while (a > 0 && lines[a - 1].txt && !lines[a - 1].pageBreak && lines[a - 1].pn === l.pn && lines[a - 1].segs.length === 1 && lines[a - 1].segs[0].x >= P(l.pn).w * 0.3 && l.y - lines[a - 1].y < 60) a--;
+    let z = i, blanks = 0, grid = 0;
+    for (let j = i; j < lines.length; j++) {
+      const x = lines[j];
+      if (x.pageBreak || x.pn !== l.pn) break;
+      if (!x.txt) { if (++blanks > 1) break; continue; }
+      if (isLv(x)) break;
+      if (/^(•|[-–])$/.test(x.segs[0].s)) break;
+      if (x.segs.length === 1 && x.segs[0].x < P(x.pn).w * 0.17 && /[.:]$/.test(x.txt) && x.txt.length > 60) break; // prose
+      blanks = 0; z = j; if (isGrid(x)) grid++;
+    }
+    if (grid >= 3) {
+      let rows = lines.slice(a, z + 1).filter(x => x.segs);
+      const x0 = Math.min(...rows.filter(r => r.txt).map(r => r.segs[0].x)), CW = 4.6;
+      // column headings stacked over several printed lines (staggered baselines): one wrapped cell per column
+      const W0 = P(l.pn).w; let hz = 0; while (hz < rows.length && (!rows[hz].txt || rows[hz].segs[0].x >= W0 * 0.3)) hz++;
+      const headText = [];
+      if (hz >= 3) {
+        const cols = []; for (const r of rows.slice(0, hz)) for (const sg of r.segs) { let c = cols.find(c => Math.abs(c.x - sg.x) < 20); if (!c) { c = { x: sg.x, t: [] }; cols.push(c); } c.t.push(sg.s); }
+        cols.sort((p, q) => p.x - q.x);
+        const wrapped = cols.map((c, i) => { const w = Math.max(8, Math.round(((cols[i + 1] ? cols[i + 1].x : c.x + 90) - c.x) / CW) - 2); const out = []; let cur = '';
+          for (const word of c.t.join(' ').split(/\s+/)) { if (cur && (cur + ' ' + word).length > w) { out.push(cur); cur = word; } else cur = cur ? cur + ' ' + word : word; } if (cur) out.push(cur); return out; });
+        const n = Math.max(...wrapped.map(w => w.length));
+        for (let k = 0; k < n; k++) { let t = ''; cols.forEach((c, i) => { const s2 = wrapped[i][k] || ''; if (!s2) return; const col = Math.round((c.x - x0) / CW); t += ' '.repeat(Math.max(t.length ? 2 : 0, col - t.length)) + s2; }); headText.push(t); }
+        rows = rows.slice(hz);
+      }
+      const text = headText.concat(rows.map(r => { let t = ''; for (const s of r.segs) { const col = Math.round((s.x - x0) / CW); t += (t.length && col <= t.length + 1 ? '  ' : ' '.repeat(Math.max(0, col - t.length))) + s.s; } return t.replace(/\s+$/, ''); }));
+      while (text.length && !text[text.length - 1]) text.pop();
+      out.push({ p: l.pn, rows: text.map(t => t.replace(/\uf0fb/g, '✗').replace(/\uf0fc/g, '✓')) }); // Wingdings cross / tick as printed
+    }
+    i = Math.max(z + 1, i + 1);
+  }
+  return out;
 }
 
 function parseQuickCodeTable(pages) {

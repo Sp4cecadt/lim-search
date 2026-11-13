@@ -452,6 +452,8 @@ function defectCard(d, { open = false, terms = [], showNotes = true, showDetails
   const warn = [];
   if (d.zCode && !d.inZIndex) warn.push('This card allows a Z Code, but it isn’t listed in the Appendix 1 Z Code index. Check the card and the index.');
   if (d.inZIndex && !d.zCode) warn.push('Listed in the Appendix 1 Z Code index, but the card’s priority range doesn’t mention Z Code.');
+  if (d.breakdownFrom === 'details') warn.push('Breakdown is stated in this card’s details or chart, not in its priority range.');
+  if (d.breakdownFrom === 'index') warn.push(`Listed in the Appendix 3 Breakdown index (p.${d.inBreakdownIndex}), but this card’s priority range and details don’t say Breakdown.`);
   const rng = (txt, by) => by ? Object.entries(by).map(([k, v]) => `<b>${esc(k)}:</b> ${esc(v)}`).join('<br>') : esc(txt || '');
   const kv = [];
   if (d.severityRange) kv.push(['Severity', rng(d.severityRange, d.severityByBfra)]);
@@ -461,7 +463,8 @@ function defectCard(d, { open = false, terms = [], showNotes = true, showDetails
     const g = new Map(); for (const q of d.quickCodes) { if (!g.has(q.group)) g.set(q.group, []); g.get(q.group).push(q.code); }
     kv.push(['Quick code', [...g].map(([grp, codes]) => `${grp ? `<div class="small muted">${esc(grp)} &gt;</div>` : ''}${codes.map(c => `<span class="qc">${esc(c)}</span>`).join(' ')}`).join('')]);
   }
-  const scale = d.scale.length ? `<table class="scale">${(() => { let g = null, h = ''; for (const s of d.scale) { if (s.group && s.group !== g) { g = s.group; h += `<tr><td colspan="2" class="muted small"><b>${esc(g)}</b></td></tr>`; } h += `<tr><td class="l ${lvClass(s.level)}${cellCls(s.c)}"${cellStyle(s.c)}>${esc(s.level)}</td><td>${hl(s.text, terms).replace(/\[([^\]]*Z Code[^\]]*)\]/gi, '<span class="zt">[$1]</span>')}</td></tr>`; } return h; })()}</table>` : '';
+  const scale = d.scale.length ? `<table class="scale">${(() => { let g = null, h = ''; for (const s of d.scale) { if (s.group && s.group !== g) { g = s.group; h += `<tr><td colspan="2" class="muted small"><b>${esc(g)}</b></td></tr>`; } h += `<tr><td class="l ${lvClass(s.level)}${cellCls(s.c)}"${cellStyle(s.c)}>${esc(s.level)}</td><td>${hl(s.text, terms).replace(/\[([^\]]*Z Code[^\]]*)\]/gi, '<span class="zt">[$1]</span>')}${s.merged ? ` <small class="muted">(one cell across ${s.merged} levels)</small>` : ''}</td></tr>`; } return h; })()}</table>` : '';
+  const tables = (d.tables || []).map(t => `<div class="small muted">Table as printed, ${pageLink(t.p)}. Scroll sideways if it’s wide.</div><div class="pre tbl">${hl(t.rows.join('\n'), terms)}</div>`).join('');
   const refs = [`Card ${pageLink(d.page, d.pageLabel)}${d.endPage > d.page ? `–${d.endPage}` : ''}`];
   if (d.summaryPage) refs.push(`Summary table ${pageLink(d.summaryPage)}`);
   if (d.inZIndex) refs.push(`App. 1 Z index ${pageLink(d.inZIndex)}`);
@@ -478,8 +481,10 @@ function defectCard(d, { open = false, terms = [], showNotes = true, showDetails
     ${warn.map(w => `<div class="note">⚠️ ${esc(w)}</div>`).join('')}
     <dl class="kv">${kv.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl>
     ${scale}
+    ${tables}
     ${showDetails && d.details ? `<details ${open ? 'open' : ''}><summary>Details from the manual</summary><div class="pre">${hl(d.details, terms)}</div></details>` : ''}
     ${ex.length ? `<details class="phx" ${open ? 'open' : ''}><summary>${nPh ? '📷 ' : ''}Photo examples (${ex.length})</summary>${!PHOTOS.size ? `<div class="note small">The example photos aren’t on this phone yet. <a href="#/manual">Manual tab › Add photos</a></div>` : ''}${ex.map(e => `<div class="ex">${PHOTOS.has(e.key) ? `<button class="phb" data-ph="${e.key}" aria-label="Enlarge photo"><img data-phk="${e.key}" alt="Example photo from p.${e.p}"><span class="zoomi">⤢</span></button>` : ''}${hl(e.caption, terms)}<div>${e.tags.map(t => `<span class="tag ${t.k === 'Priority' && /z/i.test(t.v) ? 'zt' : ''}">${t.bfra ? esc(t.bfra) + ' ' : ''}${esc(t.k)}: ${esc(t.v)}</span>`).join('')} ${pageLink(e.p)}</div></div>`).join('')}</details>` : ''}
+    ${d.aside ? `<details><summary>${esc(d.aside.title)} (printed below the quick codes)</summary><div class="pre small">${hl(d.aside.text, terms)}</div></details>` : ''}
     ${d.summary ? `<details><summary>Section 5 summary table row</summary><div class="small muted">As printed in the condition summary table, ${pageLink(d.summary.p)}. Columns may run together.</div><dl class="kv"><dt>Quick code</dt><dd>${esc(d.summary.quickCode)}</dd><dt>Severity</dt><dd>${esc(d.summary.severity)}</dd></dl><div class="pre small">${hl(d.summary.details, terms)}</div></details>` : ''}
     ${d.kind === 'Summary table only' ? `<div class="note">There's no separate condition example page for this one. It's taken from the Section 5 summary table, ${pageLink(d.page)}, so check the page.</div>` : ''}
     <div class="small muted" style="margin-top:8px">${refs.join(' · ')}</div>
@@ -1298,26 +1303,29 @@ if ('serviceWorker' in navigator && location.protocol !== 'file:') {
   navigator.serviceWorker.register('sw.js').then(reg => { try { reg.update(); } catch (_) {} }).catch(() => {});
 }
 loadData().then(route).then(() => setTimeout(upgradeStoredManual, 1500));
-// Data read by an older extractor (< 1.2) has no severity cell colours. Re-read the stored PDF on the phone and
-// swap the new data in. Card ids and photo examples are unchanged by 1.2, so stored photos are kept.
+// Data read by an older extractor (< 1.3) is re-read from the PDF stored on this phone and swapped in
+// (1.2 added severity cell colours; 1.3 the LIM audit card fixes). Never touches the notes.
+// Stored photos are kept when every card's photo examples are unchanged; otherwise they are re-added from the stored PDF.
 async function upgradeStoredManual() {
   try {
-    if (!DATA || +DATA.meta.extractorVersion >= 1.2 || PHOTO_RUN || UPGRADING) return;
+    if (!DATA || +DATA.meta.extractorVersion >= 1.3 || PHOTO_RUN || UPGRADING) return;
     const blob = await store.get('pdf'); if (!blob) return;
     UPGRADING = true;
-    bg('🎨 Adding the manual’s severity colours (red / grey) from your stored PDF…');
+    bg('🔧 Updating the cards from the manual stored on this phone…');
     const { extractFromPdf } = await import('./js/pdfload.js');
-    const nd = await extractFromPdf(blob, p => { if (p.phase === 'text') bg(`🎨 Adding severity colours: page ${p.done} of ${p.total}<br><progress max="${p.total}" value="${p.done}"></progress>`); });
+    const nd = await extractFromPdf(blob, p => { if (p.phase === 'text') bg(`🔧 Updating the cards from your stored manual: page ${p.done} of ${p.total}<br><progress max="${p.total}" value="${p.done}"></progress>`); });
+    if (!nd || !nd.defects || nd.defects.length < 20) { bg(''); return; } // couldn't read it: keep what's there
     const old = DATA;
-    const same = nd.defects.length === old.defects.length && nd.defects.every((d, i) => d.id === old.defects[i].id && d.title === old.defects[i].title && d.examples.length === old.defects[i].examples.length);
-    if (!same) { // layout changed between versions: keep the old cards, copy colours onto matching rows only
-      const byId = new Map(nd.defects.map(d => [d.id + '|' + d.title, d]));
-      for (const d of old.defects) { const n = byId.get(d.id + '|' + d.title); if (!n) continue;
-        for (const s of d.scale) { const m = n.scale.find(x => x.level === s.level && x.text === s.text && x.p === s.p); if (m && m.c) s.c = m.c; } }
-      old.meta.extractorVersion = nd.meta.extractorVersion; old.meta.coloursMerged = true;
-      await store.set('manual', old); setData(old, META);
-    } else { await store.set('manual', nd); setData(nd, META); }
-    bg(''); route();
+    const exSig = d => JSON.stringify(d.examples.map(e => [e.p, e.y0, e.y1]));
+    const samePhotos = nd.defects.length === old.defects.length && nd.defects.every((d, i) => d.id === old.defects[i].id && d.title === old.defects[i].title && exSig(d) === exSig(old.defects[i]));
+    await store.set('manual', nd);
+    if (samePhotos) { setData(nd, META); bg(''); route(); return; }
+    // photo examples moved: their stored photos are keyed by example, so re-add them from the stored PDF
+    await store.photoClear(); PHOTOS = new Set(); resetPhotoURLs();
+    await store.set('photoMeta', { forLoadedAt: META && META.loadedAt, status: 'running' });
+    setData(nd, META); PHMETA = await store.get('photoMeta'); bg(''); route();
+    UPGRADING = false;
+    await runPhotos(blob);
   } catch (e) { console.error(e); bg(''); }
   finally { UPGRADING = false; }
 }

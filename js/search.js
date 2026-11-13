@@ -14,7 +14,7 @@ export function buildIndex(data) {
   });
   defIdx.addAll(data.defects.map(d => ({
     id: d.id, title: d.title + (d.kind !== 'Defect' ? ' ' + d.kind : ''), section: d.sectionTitle || '',
-    qc: d.quickCodes.map(q => q.group + ' ' + q.code).join(' '), scale: d.scale.map(s => s.text).join(' '),
+    qc: d.quickCodes.map(q => q.group + ' ' + q.code).join(' '), scale: d.scale.map(s => s.text).concat((d.tables || []).map(t => t.rows.join(' '))).join(' '),
     details: d.details, examples: d.examples.map(e => e.caption).join(' '),
     ranges: [d.severityRange, d.priorityRange, d.zCode ? 'z code' : '', d.breakdown ? 'breakdown' : ''].join(' '),
   })));
