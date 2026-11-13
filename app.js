@@ -155,7 +155,7 @@ function askSkynetText(d) {
     if (bits.length) t += ` Priority: ${bits.join('; ')}.`;
     t += ' What should I check and how should I record it?';
   } else {
-    t = 'LIM help: check defect/photos vs LIM + docs; give opinion (severity, priority, Z Code/Breakdown). Then separate bubble recap, bold dot points, drop N/A: defect + LIM ref, sev, pri, code, long text, don\'t record if, upgrade if, downgrade if.';
+    t = 'LIM help: check defect/photos vs LIM + docs; give opinion (severity, priority, Z Code/Breakdown). Then separate bubble recap, bold UPPERCASE full-word headings, dot points, drop N/A: DEFECT + LIM ref, SEVERITY, PRIORITY, CODING, LONG TEXT, DON\'T RECORD IF, UPGRADE IF, DOWNGRADE IF.';
   }
   t = t.replace(/\s+/g, ' ').trim();
   return t.length > 1000 ? t.slice(0, 997) + '…' : t;
